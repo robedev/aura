@@ -595,24 +595,172 @@ class OSController {
     closeTab() { this.sendShortcut(['ctrl'], 'w'); }
 
     // Cleanup running processes
-    cleanup() {
-        console.log('🧹 Cleaning up OSController processes...');
+    async cleanup() {
+        console.log('🧹 Starting comprehensive OSController cleanup...');
 
-        // Terminate any running processes
+        const startTime = Date.now();
+        const cleanupPromises = [];
+
+        // Phase 1: Graceful termination of tracked processes
+        console.log('📋 Phase 1: Graceful termination of tracked processes');
         for (const childProcess of this.runningProcesses) {
-            try {
-                if (this.platform === 'linux' || this.platform === 'darwin') {
-                    process.kill(childProcess.pid, 'SIGTERM');
-                } else if (this.platform === 'win32') {
-                    childProcess.kill();
+            const cleanupPromise = new Promise((resolve) => {
+                try {
+                    const pid = childProcess.pid;
+                    console.log(`🔄 Terminating process PID ${pid} gracefully...`);
+
+                    if (this.platform === 'linux' || this.platform === 'darwin') {
+                        // Send SIGTERM first
+                        try {
+                            process.kill(pid, 'SIGTERM');
+                        } catch (error) {
+                            console.warn(`SIGTERM failed for PID ${pid}:`, error.message);
+                        }
+
+                        // Wait 2 seconds, then try SIGKILL if still running
+                        setTimeout(() => {
+                            try {
+                                process.kill(pid, 'SIGKILL');
+                                console.log(`💀 Force killed PID ${pid} with SIGKILL`);
+                            } catch (error) {
+                                // Process already terminated
+                            }
+                            resolve();
+                        }, 2000);
+
+                    } else if (this.platform === 'win32') {
+                        // Windows termination
+                        childProcess.kill();
+                        setTimeout(() => {
+                            try {
+                                childProcess.kill('SIGKILL');
+                            } catch (error) {
+                                // Process already terminated
+                            }
+                            resolve();
+                        }, 2000);
+                    }
+                } catch (error) {
+                    console.error(`Error terminating process:`, error);
+                    resolve(); // Continue with cleanup
                 }
-            } catch (error) {
-                console.error('Error terminating process:', error);
-            }
+            });
+            cleanupPromises.push(cleanupPromise);
         }
 
+        // Phase 2: System-wide cleanup of Aura-related processes
+        console.log('📋 Phase 2: System-wide cleanup of Aura-related processes');
+
+        if (this.platform === 'linux') {
+            // Kill any remaining xdotool processes
+            const xdotoolCleanup = this.executeCommandAsync('pkill -f xdotool || true')
+                .then(() => console.log('✅ Killed any remaining xdotool processes'));
+
+            // Kill any remaining espeak processes
+            const espeakCleanup = this.executeCommandAsync('pkill -f espeak || pkill -f festival || true')
+                .then(() => console.log('✅ Killed any remaining TTS processes'));
+
+            cleanupPromises.push(xdotoolCleanup, espeakCleanup);
+
+        } else if (this.platform === 'win32') {
+            // Kill PowerShell processes related to Aura
+            const powershellCleanup = this.executeCommandAsync('taskkill /F /IM powershell.exe /FI "WINDOWTITLE eq Aura*" || true')
+                .then(() => console.log('✅ Killed any remaining PowerShell processes'));
+
+            cleanupPromises.push(powershellCleanup);
+
+        } else if (this.platform === 'darwin') {
+            // Kill AppleScript processes
+            const applescriptCleanup = this.executeCommandAsync('pkill -f osascript || true')
+                .then(() => console.log('✅ Killed any remaining AppleScript processes'));
+
+            cleanupPromises.push(applescriptCleanup);
+        }
+
+        // Phase 3: Wait for all cleanup operations to complete
+        console.log('📋 Phase 3: Waiting for cleanup completion');
+        try {
+            await Promise.all(cleanupPromises);
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
+
+        // Phase 4: Final verification and forced cleanup
+        console.log('📋 Phase 4: Final verification and forced cleanup');
+        await this.finalCleanupSweep();
+
+        // Clear tracking
         this.runningProcesses.clear();
-        console.log('✅ OSController cleanup completed');
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ OSController cleanup completed in ${duration}ms`);
+    }
+
+    async executeCommandAsync(command) {
+        return new Promise((resolve, reject) => {
+            const child = spawn(command, [], {
+                shell: true,
+                stdio: 'ignore'
+            });
+
+            child.on('exit', (code) => {
+                if (code === 0 || code === 1) { // Allow exit code 1 (no processes found)
+                    resolve();
+                } else {
+                    reject(new Error(`Command failed with exit code ${code}`));
+                }
+            });
+
+            child.on('error', (error) => {
+                reject(error);
+            });
+        });
+    }
+
+    async finalCleanupSweep() {
+        console.log('🔍 Performing final cleanup sweep...');
+
+        try {
+            if (this.platform === 'linux') {
+                // Use pgrep to find any processes that might be related to our operations
+                const result = await new Promise((resolve) => {
+                    const child = spawn('pgrep', ['-f', 'xdotool|espeak|festival'], {
+                        stdio: ['ignore', 'pipe', 'ignore']
+                    });
+
+                    let output = '';
+                    child.stdout.on('data', (data) => {
+                        output += data.toString();
+                    });
+
+                    child.on('exit', () => {
+                        resolve(output.trim().split('\n').filter(Boolean));
+                    });
+                });
+
+                if (result.length > 0) {
+                    console.log(`🚨 Found ${result.length} potentially orphaned processes, force killing...`);
+                    for (const pid of result) {
+                        try {
+                            process.kill(parseInt(pid), 'SIGKILL');
+                            console.log(`💀 Force killed orphaned PID ${pid}`);
+                        } catch (error) {
+                            // Process might have already terminated
+                        }
+                    }
+                }
+
+            } else if (this.platform === 'win32') {
+                // Windows final sweep - kill any hanging processes
+                await this.executeCommandAsync('taskkill /F /IM xdotool.exe || taskkill /F /IM espeak.exe || true');
+
+            } else if (this.platform === 'darwin') {
+                // macOS final sweep
+                await this.executeCommandAsync('pkill -9 -f "xdotool|espeak|festival|osascript" || true');
+            }
+        } catch (error) {
+            console.warn('Final cleanup sweep encountered error:', error.message);
+        }
     }
 
     getPlatformInfo() {

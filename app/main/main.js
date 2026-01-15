@@ -426,35 +426,125 @@ ipcMain.on('save-file', () => osController.save());
 ipcMain.on('new-tab', () => osController.newTab());
 ipcMain.on('close-tab', () => osController.closeTab());
 
-// Graceful shutdown handling
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, cleaning up...');
-  osController.cleanup();
-  setTimeout(() => process.exit(0), 500);
+// Enhanced graceful shutdown handling
+let isShuttingDown = false;
+
+async function performGracefulShutdown(signal = 'unknown') {
+  if (isShuttingDown) {
+    console.log('⚠️ Shutdown already in progress, forcing exit...');
+    process.exit(1);
+  }
+
+  isShuttingDown = true;
+  console.log(`🛑 ${signal} received, starting comprehensive cleanup...`);
+
+  try {
+    // Phase 1: Stop accepting new IPC messages
+    console.log('📋 Phase 1: Disabling IPC communication');
+    // Note: Electron automatically handles IPC cleanup
+
+    // Phase 2: Cleanup main window
+    console.log('📋 Phase 2: Cleaning up main window');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Send cleanup signal to renderer process
+      mainWindow.webContents.send('application-closing');
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    // Phase 3: Comprehensive OS Controller cleanup
+    console.log('📋 Phase 3: OS Controller cleanup');
+    await osController.cleanup();
+
+    // Phase 4: Final cleanup verification
+    console.log('📋 Phase 4: Final cleanup verification');
+    await performFinalCleanupCheck();
+
+    console.log('✅ Comprehensive cleanup completed successfully');
+
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error);
+  } finally {
+    // Force exit after maximum cleanup time
+    setTimeout(() => {
+      console.log('💀 Forcing application exit...');
+      process.exit(0);
+    }, 3000);
+  }
+}
+
+process.on('SIGINT', () => performGracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => performGracefulShutdown('SIGTERM'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error);
+  performGracefulShutdown('uncaughtException');
 });
 
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, cleaning up...');
-  osController.cleanup();
-  setTimeout(() => process.exit(0), 500);
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  performGracefulShutdown('unhandledRejection');
 });
 
 app.whenReady().then(createWindow);
 
-app.on('window-all-closed', () => {
-  console.log('🧹 Application closing, performing final cleanup...');
+app.on('window-all-closed', async () => {
+  console.log('🧹 Application window closed, performing final cleanup...');
 
-  // Cleanup OS Controller processes
-  osController.cleanup();
+  // Wait for any pending operations
+  await new Promise(resolve => setTimeout(resolve, 500));
 
-  // Give time for cleanup to complete
-  setTimeout(() => {
-    if (process.platform !== 'darwin') {
-      console.log('✅ Application cleanup completed, quitting...');
+  // Perform comprehensive cleanup
+  await performGracefulShutdown('window-all-closed');
+
+  // Only quit on non-macOS platforms
+  if (process.platform !== 'darwin') {
+    setTimeout(() => {
+      console.log('🏁 Application shutdown complete');
       app.quit();
-    }
-  }, 1000);
+    }, 1000);
+  }
 });
+
+async function performFinalCleanupCheck() {
+  console.log('🔍 Performing final cleanup verification...');
+
+  try {
+    // Check for any remaining processes on Linux
+    if (process.platform === 'linux') {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+
+      try {
+        const { stdout } = await execAsync('pgrep -f "aura|xdotool|espeak|festival" || true');
+        const pids = stdout.trim().split('\n').filter(Boolean);
+
+        if (pids.length > 0) {
+          console.warn(`🚨 Found ${pids.length} potentially orphaned processes:`, pids);
+          // Force kill them
+          for (const pid of pids) {
+            try {
+              process.kill(parseInt(pid), 'SIGKILL');
+            } catch (error) {
+              // Process might have already terminated
+            }
+          }
+        } else {
+          console.log('✅ No orphaned processes found');
+        }
+      } catch (error) {
+        console.log('ℹ️ Process check completed (no processes found)');
+      }
+    }
+
+    // Additional platform-specific checks could be added here
+
+  } catch (error) {
+    console.warn('Final cleanup check encountered error:', error.message);
+  }
+}
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

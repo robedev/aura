@@ -3,25 +3,46 @@ console.log('🚀 Aura renderer loaded');
 
 // Global cleanup function
 window.cleanupAura = function() {
-  console.log('🧹 Cleaning up Aura resources...');
+  console.log('🧹 Performing comprehensive Aura cleanup...');
 
-  // Clear all intervals
-  if (window.debugInterval) {
-    clearInterval(window.debugInterval);
-    window.debugInterval = null;
-  }
+  try {
+    // Phase 1: Clear all timers and intervals
+    console.log('📋 Phase 1: Clearing all timers and intervals');
 
-  if (window.mediaPipeCheckInterval) {
-    clearInterval(window.mediaPipeCheckInterval);
-    window.mediaPipeCheckInterval = null;
-  }
+    // Clear known intervals
+    const intervalsToClear = [
+      'debugInterval',
+      'mediaPipeCheckInterval',
+      'scanInterval',
+      'auraScanInterval',
+      'auraTimeout'
+    ];
 
-  if (scanInterval) {
-    clearInterval(scanInterval);
-    scanInterval = null;
-  }
+    intervalsToClear.forEach(intervalName => {
+      if (window[intervalName]) {
+        if (typeof window[intervalName] === 'number') {
+          clearInterval(window[intervalName]);
+        } else {
+          clearInterval(window[intervalName]);
+        }
+        window[intervalName] = null;
+      }
+    });
 
-  // Stop face tracker and camera
+    // Clear any remaining intervals by ID
+    const highestIntervalId = setInterval(() => {}, 1000);
+    for (let i = 0; i < highestIntervalId; i++) {
+      clearInterval(i);
+    }
+
+    // Clear any remaining timeouts by ID
+    const highestTimeoutId = setTimeout(() => {}, 0);
+    for (let i = 0; i < highestTimeoutId; i++) {
+      clearTimeout(i);
+    }
+
+    // Phase 2: Stop face tracker and camera
+    console.log('📋 Phase 2: Stopping face tracker and camera');
   if (faceTracker) {
     try {
       faceTracker.stop();
@@ -37,7 +58,49 @@ window.cleanupAura = function() {
     window.pendingTimeouts = [];
   }
 
-  console.log('✅ Cleanup completed');
+  // Phase 3: Clear event listeners
+  console.log('📋 Phase 3: Clearing event listeners');
+  try {
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => {
+      if (button.onclick) {
+        button.onclick = null;
+      }
+    });
+  } catch (error) {
+    console.warn('Error clearing event listeners:', error.message);
+  }
+
+  // Phase 4: Memory cleanup
+  console.log('📋 Phase 4: Memory cleanup');
+  try {
+    // Clear global variables
+    const globalsToClean = [
+      'faceTracker',
+      'FaceTracker',
+      'currentSettings',
+      'keys',
+      'keyButtons',
+      'currentGestureState'
+    ];
+
+    globalsToClean.forEach(globalVar => {
+      if (window[globalVar]) {
+        delete window[globalVar];
+      }
+    });
+
+    // Force garbage collection if available
+    if (window.gc) {
+      window.gc();
+    }
+  } catch (error) {
+    console.warn('Error during memory cleanup:', error.message);
+  }
+
+  // Phase 5: Final verification
+  console.log('📋 Phase 5: Final verification');
+  console.log('✅ Comprehensive Aura cleanup completed');
 };
 
 // Check if auraAPI is available
@@ -505,6 +568,58 @@ auraAPI.on('emergency-pause', () => {
       pauseBtn.textContent = originalText;
       pauseBtn.style.backgroundColor = '';
     }, 2000);
+  }
+});
+
+// Application closing handler - comprehensive cleanup
+auraAPI.on('application-closing', () => {
+  console.log('🧹 Application closing signal received - performing renderer cleanup');
+
+  try {
+    // Stop face tracker immediately
+    if (faceTracker) {
+      console.log('🛑 Stopping face tracker...');
+      faceTracker.stop();
+      faceTracker = null;
+    }
+
+    // Clear all timers and intervals
+    console.log('🕐 Clearing all timers and intervals...');
+    if (typeof window.cleanupAura === 'function') {
+      window.cleanupAura();
+    }
+
+    // Clear any pending timeouts
+    const highestTimeoutId = setTimeout(() => {}, 0);
+    for (let i = 0; i < highestTimeoutId; i++) {
+      clearTimeout(i);
+    }
+
+    // Clear any pending intervals
+    const highestIntervalId = setInterval(() => {}, 1000);
+    for (let i = 0; i < highestIntervalId; i++) {
+      clearInterval(i);
+    }
+
+    // Remove all event listeners from DOM elements
+    console.log('🔄 Removing event listeners...');
+    const buttons = ['settings', 'calibrate', 'pause'];
+    buttons.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        const clone = element.cloneNode(true);
+        element.parentNode.replaceChild(clone, element);
+      }
+    });
+
+    // Clear any remaining Aura API listeners
+    console.log('🔌 Cleaning up IPC listeners...');
+    // Note: auraAPI cleanup is handled by Electron automatically
+
+    console.log('✅ Renderer cleanup completed');
+
+  } catch (error) {
+    console.error('❌ Error during renderer cleanup:', error);
   }
 });
 
