@@ -1,0 +1,47 @@
+{
+  "name": "Perfil Predeterminado",
+  "sensitivity": {
+    "headMovement": 0.5,
+    "blinkThreshold": 0.02
+  },
+  "gestures": {
+    "enabled": [
+      "head_move",
+      "blink_click"
+    ]
+  },
+  "thresholds": {
+    "dwellTime": 1000,
+    "stabilityThreshold": 10,
+    "deadZonePercent": 0.1,
+    "blinkThreshold": 0.25,
+    "eyebrowThreshold": 0.15,
+    "mouthThreshold": 0.08,
+    "emergencyTime": 2000,
+    "executionCooldown": 800
+  },
+  "adaptive": {
+    "enabled": true,
+    "autoCalibration": true,
+    "fatigueReduction": 0.8,
+    "errorTolerance": 1.2,
+    "learningRate": 0.1
+  },
+  "rules": [
+    {
+      "gesture": "mouthOpen",
+      "action": "save-file",
+      "param": ""
+    },
+    {
+      "gesture": "eyebrowRaise",
+      "action": "close-window",
+      "param": ""
+    }
+  ],
+  "calibration": {
+    "neutralPose": null,
+    "lastCalibrated": null,
+    "adaptationHistory": []
+  }
+}

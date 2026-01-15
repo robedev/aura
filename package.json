@@ -1,0 +1,84 @@
+{
+  "name": "aura",
+  "version": "2.0.0",
+  "description": "Aplicación revolucionaria de accesibilidad facial con IA adaptativa, calibración automática y detección precisa para personas con cuadriplejia",
+  "main": "app/main/main.js",
+  "homepage": "https://github.com/aura-project/aura",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aura-project/aura.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aura-project/aura/issues"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install-deps": "node scripts/install-dependencies.js",
+    "check-platform": "node scripts/check-platform.js",
+    "test-cleanup": "node scripts/test-cleanup.js",
+    "test-gestures": "node scripts/test-gestures.js",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": [
+    "electron",
+    "accesibilidad",
+    "facial",
+    "gestos",
+    "cuadriplejia",
+    "ia-adaptativa",
+    "vision-por-computador",
+    "mediapipe",
+    "asistente-accesibilidad",
+    "control-facial",
+    "multiplataforma"
+  ],
+  "author": "Aura Development Team",
+  "license": "GPL-3.0",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "os": [
+    "linux",
+    "win32",
+    "darwin"
+  ],
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/face_mesh": "^0.4.1633559619"
+  },
+  "build": {
+    "appId": "com.aura.accessibility",
+    "productName": "Aura",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "app/**/*",
+      "scripts/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.accessibility"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    }
+  }
+}

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;">
+  <title>Aura - El Sexto Sentido</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0a0a12;
+      --accent: #00ffcc;
+      --accent-glow: rgba(0, 255, 204, 0.3);
+      --glass: rgba(20, 20, 35, 0.7);
+      --text: #e0e0ff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+    }
+
+    .header {
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      -webkit-app-region: drag;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+
+    .header .controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .main-container {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 15px;
+      padding: 15px;
+      flex-grow: 1;
+    }
+
+    .view-container {
+      position: relative;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #222;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.6;
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      background: var(--glass);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    button {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: var(--accent);
+      color: var(--bg);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .keyboard {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .key {
+      padding: 10px;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #feedback {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: var(--bg);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      display: none;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .rule-item {
+      font-size: 0.8rem;
+      padding: 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .setting-group {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .setting-group h4 {
+      margin: 0 0 10px 0;
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+
+    .setting-group label {
+      display: block;
+      margin: 8px 0 4px 0;
+      font-size: 0.8rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+      background: #333;
+      border-radius: 3px;
+    }
+
+    input[type="checkbox"] {
+      margin-right: 8px;
+    }
+  </style>
+</head>
+
+<body>
+    <div class="header">
+      <div style="display: flex; flex-direction: column; align-items: flex-start;">
+        <h1>AURA EXPERIMENTAL</h1>
+        <div id="platform-info" style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;"></div>
+        <div id="camera-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
+        <div id="calibration-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
+      </div>
+    <div class="controls">
+      <button id="settings">⚙️ CONFIG</button>
+      <button id="calibrate">CALIBRAR</button>
+      <button id="pause" style="color: #ff4444; border-color: #ff4444;">PAUSA</button>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="view-container">
+      <video id="video" autoplay muted></video>
+      <canvas id="canvas"></canvas>
+      <div id="feedback"></div>
+    </div>
+
+    <div class="panel">
+      <h3>ASISTENTE</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+        <button id="undo">Deshacer</button>
+        <button id="toggleScan">Escaneo</button>
+        <button id="volumeUp">Vol +</button>
+        <button id="volumeDown">Vol -</button>
+        <button id="copy">Copiar</button>
+        <button id="paste">Pegar</button>
+        <button id="rightClick">Click Der</button>
+        <button id="scrollUp">Scroll ↑</button>
+        <button id="scrollDown">Scroll ↓</button>
+        <button id="minimize">Minimizar</button>
+        <button id="closeWindow">Cerrar</button>
+      </div>
+
+      <h3>REGLAS ACTIVAS</h3>
+      <ul id="rulesList" style="list-style: none; padding: 0; max-height: 150px; overflow-y: auto;"></ul>
+
+      <div id="ruleEditor">
+        <select id="gestureSelect"
+          style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
+          <option value="eyebrowRaise">Levantar ceja</option>
+          <option value="mouthOpen">Abrir boca</option>
+          <option value="blink">Parpadeo</option>
+        </select>
+        <select id="actionSelect"
+          style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
+          <option value="click">Click izquierdo</option>
+          <option value="right-click">Click derecho</option>
+          <option value="middle-click">Click central</option>
+          <option value="scroll-up">Scroll arriba</option>
+          <option value="scroll-down">Scroll abajo</option>
+          <option value="type">Escribir texto</option>
+          <option value="copy">Copiar</option>
+          <option value="paste">Pegar</option>
+          <option value="cut">Cortar</option>
+          <option value="select-all">Seleccionar todo</option>
+          <option value="undo">Deshacer</option>
+          <option value="save-file">Guardar</option>
+          <option value="volume-up">Subir volumen</option>
+          <option value="volume-down">Bajar volumen</option>
+          <option value="minimize-window">Minimizar ventana</option>
+          <option value="maximize-window">Maximizar ventana</option>
+          <option value="close-window">Cerrar ventana</option>
+          <option value="read-text">Leer texto</option>
+        </select>
+        <input type="text" id="actionParam" placeholder="Texto para escribir..."
+          style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px; display: none;">
+        <button id="addRule" style="width: 100%;">+ AGREGAR REGLA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de Configuración Avanzada -->
+  <div id="settingsPanel" style="display: none; padding: 15px; background: var(--glass); margin: 0 15px 15px 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+    <h3 style="margin-top: 0; color: var(--accent);">⚙️ CONFIGURACIÓN AVANZADA</h3>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+      <div class="setting-group">
+        <h4>Tiempos (ms)</h4>
+        <label>Dwell Time: <span id="dwellValue">1000</span>ms</label>
+        <input type="range" id="dwellTime" min="300" max="3000" step="100" value="1000">
+        <br>
+        <label>Cooldown: <span id="cooldownValue">800</span>ms</label>
+        <input type="range" id="executionCooldown" min="200" max="2000" step="100" value="800">
+        <br>
+        <label>Emergencia: <span id="emergencyValue">2000</span>ms</label>
+        <input type="range" id="emergencyTime" min="1000" max="5000" step="500" value="2000">
+      </div>
+
+      <div class="setting-group">
+        <h4>Sensibilidad</h4>
+        <label>Estabilidad: <span id="stabilityValue">10</span>px</label>
+        <input type="range" id="stabilityThreshold" min="5" max="50" step="5" value="10">
+        <br>
+        <label>Zona Muerta: <span id="deadZoneValue">10</span>%</label>
+        <input type="range" id="deadZonePercent" min="5" max="30" step="5" value="10">
+      </div>
+
+      <div class="setting-group">
+        <h4>Umbrales de Gestos</h4>
+        <label>Parpadeo: <span id="blinkValue">0.02</span></label>
+        <input type="range" id="blinkThreshold" min="0.01" max="0.1" step="0.01" value="0.02">
+        <br>
+        <label>Cejas: <span id="eyebrowValue">0.05</span></label>
+        <input type="range" id="eyebrowThreshold" min="0.02" max="0.15" step="0.01" value="0.05">
+        <br>
+        <label>Boca: <span id="mouthValue">0.03</span></label>
+        <input type="range" id="mouthThreshold" min="0.01" max="0.1" step="0.01" value="0.03">
+      </div>
+
+      <div class="setting-group">
+        <h4>Aprendizaje Adaptativo</h4>
+        <label>
+          <input type="checkbox" id="adaptiveEnabled" checked>
+          Habilitar aprendizaje automático
+        </label>
+        <br>
+        <label>
+          <input type="checkbox" id="autoCalibration" checked>
+          Calibración automática inicial
+        </label>
+        <br>
+        <label>Reducción por fatiga: <span id="fatigueValue">80</span>%</label>
+        <input type="range" id="fatigueReduction" min="50" max="95" step="5" value="80">
+        <br>
+        <label>Tolerancia errores: <span id="toleranceValue">120</span>%</label>
+        <input type="range" id="errorTolerance" min="100" max="200" step="10" value="120">
+      </div>
+    </div>
+
+    <div style="margin-top: 15px; display: flex; gap: 10px;">
+      <button id="saveSettings" style="flex: 1;">💾 GUARDAR CONFIGURACIÓN</button>
+      <button id="resetSettings" style="background: #ff4444; border-color: #ff4444;">🔄 RESTABLECER</button>
+      <button id="closeSettings">❌ CERRAR</button>
+    </div>
+  </div>
+
+  <div style="padding: 0 15px 15px 15px;">
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <script src="../vision/face-tracking.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
