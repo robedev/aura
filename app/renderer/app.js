@@ -180,8 +180,24 @@ function updateScanHighlight() {
   });
 }
 
-document.getElementById('calibrate').onclick = () => auraAPI.send('calibrate');
-document.getElementById('pause').onclick = () => auraAPI.send('pause');
+document.getElementById('calibrate').onclick = () => {
+  console.log('🎯 Calibrate button clicked');
+  auraAPI.send('calibrate');
+  // Visual feedback
+  const calibrateBtn = document.getElementById('calibrate');
+  const originalText = calibrateBtn.textContent;
+  calibrateBtn.textContent = '🎯 CALIBRANDO...';
+  calibrateBtn.disabled = true;
+  setTimeout(() => {
+    calibrateBtn.textContent = originalText;
+    calibrateBtn.disabled = false;
+  }, 5000);
+};
+
+document.getElementById('pause').onclick = () => {
+  console.log('⏸️ Pause button clicked');
+  auraAPI.send('pause');
+};
 document.getElementById('undo').onclick = () => auraAPI.send('undo');
 
 document.getElementById('toggleScan').onclick = () => {
@@ -307,6 +323,12 @@ auraAPI.on('platform-info', (event, info) => {
 // Request platform info on load
 document.addEventListener('DOMContentLoaded', () => {
   auraAPI.send('get-platform-info');
+
+  // Verify button event listeners are attached
+  console.log('✅ DOM loaded - setting up button event listeners');
+  console.log('Settings button:', document.getElementById('settings') ? 'Found' : 'Not found');
+  console.log('Calibrate button:', document.getElementById('calibrate') ? 'Found' : 'Not found');
+  console.log('Pause button:', document.getElementById('pause') ? 'Found' : 'Not found');
 });
 
 // Camera error handler
@@ -317,6 +339,12 @@ auraAPI.on('camera-error', (event, errorData) => {
   cameraStatus.innerHTML = '⚠️ Cámara no disponible - Funciones limitadas';
 
   console.warn('Camera error displayed to user:', errorData);
+});
+
+// Calibration event handlers
+auraAPI.on('start-calibration', () => {
+  console.log('Calibration started');
+  // The button visual feedback is already handled above
 });
 
 // Calibration status handler
@@ -340,8 +368,10 @@ auraAPI.on('calibration-status', (event, status) => {
 let currentSettings = {};
 
 document.getElementById('settings').onclick = () => {
+  console.log('⚙️ Settings button clicked');
   const panel = document.getElementById('settingsPanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  console.log('Settings panel visibility:', panel.style.display);
   if (panel.style.display === 'block') {
     loadCurrentSettings();
   }
@@ -458,6 +488,25 @@ document.getElementById('resetSettings').onclick = () => {
     auraAPI.send('reset-profile-settings');
   }
 };
+
+// Emergency pause handler
+auraAPI.on('emergency-pause', () => {
+  console.log('Emergency pause triggered - stopping all actions');
+  if (faceTracker) {
+    faceTracker.stop();
+  }
+  // Visual feedback
+  const pauseBtn = document.getElementById('pause');
+  if (pauseBtn) {
+    const originalText = pauseBtn.textContent;
+    pauseBtn.textContent = '⏸️ PAUSADO';
+    pauseBtn.style.backgroundColor = '#ff4444';
+    setTimeout(() => {
+      pauseBtn.textContent = originalText;
+      pauseBtn.style.backgroundColor = '';
+    }, 2000);
+  }
+});
 
 // Listen for settings saved confirmation
 auraAPI.on('settings-saved', () => {

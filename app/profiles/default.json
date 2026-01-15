@@ -35,7 +35,7 @@
     },
     {
       "gesture": "eyebrowRaise",
-      "action": "close-window",
+      "action": "minimize-window",
       "param": ""
     }
   ],

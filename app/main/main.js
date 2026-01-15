@@ -390,6 +390,15 @@ ipcMain.on('calibrate', () => {
   }
 });
 
+ipcMain.on('pause', () => {
+  console.log('Emergency pause activated');
+  // Stop face tracking immediately
+  if (mainWindow) {
+    mainWindow.webContents.send('emergency-pause');
+  }
+  // Additional emergency actions could be added here
+});
+
 ipcMain.on('type-text', (event, text) => osController.typeText(text));
 ipcMain.on('undo', () => osController.undo());
 ipcMain.on('open-app', (event, app) => osController.openApp(app));

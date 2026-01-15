@@ -3,13 +3,13 @@
   "version": "2.0.0",
   "description": "Aplicación revolucionaria de accesibilidad facial con IA adaptativa, calibración automática y detección precisa para personas con cuadriplejia",
   "main": "app/main/main.js",
-  "homepage": "https://github.com/aura-project/aura",
+  "homepage": "https://github.com/robedev/aura",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aura-project/aura.git"
+    "url": "https://github.com/robedev/aura.git"
   },
   "bugs": {
-    "url": "https://github.com/aura-project/aura/issues"
+    "url": "https://github.com/robedev/aura/issues"
   },
   "scripts": {
     "start": "electron .",
