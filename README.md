@@ -1,4 +1,5 @@
-# Aura - Aplicación de Accesibilidad Facial Avanzada
+# Aura - Asistente Universal de Relación y Acceso
+# Aplicación de Accesibilidad Facial Avanzada
 
 ## 🧠 Descripción
 
