@@ -110,6 +110,90 @@ if (typeof window.auraAPI === 'undefined') {
   console.log('✅ auraAPI available');
 }
 
+// Debug information for DevTools
+console.log('🛠️  Aura Debug Console - Development Mode');
+console.log('📋 Available global functions:');
+console.log('   - window.cleanupAura(): Force cleanup');
+console.log('   - window.faceTracker: Current face tracker instance');
+console.log('   - window.auraAPI: IPC communication object');
+console.log('   - currentSettings: Current profile settings');
+console.log('🎮 Available actions:');
+console.log('   - F12 or Ctrl+Shift+I: Toggle DevTools');
+console.log('   - CONFIG button: Open settings panel');
+console.log('   - CALIBRAR button: Start calibration');
+console.log('   - PAUSA button: Emergency pause');
+console.log('📊 Debug shortcuts:');
+console.log('   - console.log(faceTracker): Check face tracker status');
+console.log('   - console.log(currentSettings): View current settings');
+
+// Development helpers
+window.debugAura = {
+  getStatus: () => ({
+    faceTracker: !!faceTracker,
+    settings: !!currentSettings,
+    auraAPI: !!window.auraAPI,
+    platform: navigator.platform,
+    userAgent: navigator.userAgent
+  }),
+
+  forceCleanup: () => {
+    console.log('🔧 Forcing cleanup...');
+    if (window.cleanupAura) window.cleanupAura();
+  },
+
+  testIPC: () => {
+    console.log('🔄 Testing IPC communication...');
+    window.auraAPI.send('get-platform-info');
+  },
+
+  getLogs: () => {
+    console.log('📝 Recent console logs:');
+    // This will show recent logs in the console
+  }
+};
+
+console.log('🛠️  Debug helpers available at window.debugAura');
+console.log('💡 Type debugAura.getStatus() to check system status');
+
+// Show debug indicator if DevTools are available
+function updateDebugIndicator() {
+  const debugIndicator = document.getElementById('debug-indicator');
+  if (debugIndicator) {
+    // Check if DevTools are opened (this is a simple heuristic)
+    const hasDevTools = window.outerHeight < 600 || window.outerWidth < 800 ||
+                       document.body.classList.contains('devtools-opened') ||
+                       window.location.search.includes('devtools');
+
+    if (hasDevTools) {
+      debugIndicator.style.display = 'inline-block';
+      console.log('🛠️  Debug indicator activated');
+    } else {
+      debugIndicator.style.display = 'none';
+    }
+  }
+}
+
+// Check for DevTools periodically
+setInterval(updateDebugIndicator, 2000);
+updateDebugIndicator(); // Initial check
+
+// Add debug indicator toggle function
+window.debugAura.showDebugIndicator = () => {
+  const debugIndicator = document.getElementById('debug-indicator');
+  if (debugIndicator) {
+    debugIndicator.style.display = 'inline-block';
+    console.log('🛠️  Debug indicator manually activated');
+  }
+};
+
+window.debugAura.hideDebugIndicator = () => {
+  const debugIndicator = document.getElementById('debug-indicator');
+  if (debugIndicator) {
+    debugIndicator.style.display = 'none';
+    console.log('🛠️  Debug indicator manually hidden');
+  }
+};
+
 // Check if MediaPipe scripts are loaded
 window.addEventListener('load', () => {
   console.log('📦 Window loaded, checking MediaPipe...');

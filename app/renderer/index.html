@@ -178,7 +178,12 @@
 <body>
     <div class="header">
       <div style="display: flex; flex-direction: column; align-items: flex-start;">
-        <h1>AURA EXPERIMENTAL</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <h1>AURA EXPERIMENTAL</h1>
+          <div id="debug-indicator" style="background: rgba(255, 165, 0, 0.9); color: black; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; display: none;">
+            🛠️ DEBUG MODE
+          </div>
+        </div>
         <div id="platform-info" style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;"></div>
         <div id="camera-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
         <div id="calibration-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>

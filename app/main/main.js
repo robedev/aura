@@ -110,9 +110,31 @@ function createWindow() {
 
   mainWindow.loadFile('app/renderer/index.html');
 
+  // Enable DevTools for debugging
+  mainWindow.webContents.openDevTools({
+    mode: 'detach', // Open in separate window
+    activate: false // Don't bring to front automatically
+  });
+
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('Main window loaded, sending profile data');
+    console.log('🛠️  DevTools enabled - Console available for debugging');
+
     mainWindow.webContents.send('profile-loaded', profile);
+  });
+
+  // Add keyboard shortcut to toggle DevTools (F12 or Ctrl+Shift+I)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      event.preventDefault();
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+        console.log('🛠️  DevTools closed');
+      } else {
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+        console.log('🛠️  DevTools opened');
+      }
+    }
   });
 
   // Cleanup when window is closed
