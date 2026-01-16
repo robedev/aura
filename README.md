@@ -276,13 +276,13 @@ npm run test-cleanup  # Verifica que no queden procesos huérfanos
 
 2. **Control del Mouse**:
    - Mueve la cabeza para mover el cursor
-   - Parpadea para hacer click (o mantén fija la mirada)
+   - Abre la boca para confirmar/hacer click
    - Zona muerta central evita movimientos accidentales
 
 3. **Teclado Virtual**:
    - Activa modo escritura
    - Usa escaneo o selección directa
-   - Parpadea para seleccionar tecla
+   - Abre la boca para seleccionar tecla
 
 4. **Reglas Personalizadas**:
    - Abre editor de reglas
@@ -294,12 +294,12 @@ npm run test-cleanup  # Verifica que no queden procesos huérfanos
 | Gesto | Acción | Precisión | Estado |
 |-------|--------|-----------|---------|
 | **Movimiento de cabeza** | Cursor del mouse preciso | ✅ Calibrado individualmente | 🟢 Activo |
-| **Parpadeo corto** | Click izquierdo/derecho | ✅ Umbrales optimizados | 🟢 Activo |
-| **Parpadeo largo** | Click central/doble-click | ✅ Duración calibrada | 🟢 Activo |
+| **Inclinación Cabeza Izq** | Acción configurable (Vol-) | ✅ Umbrales optimizados | 🟢 Activo |
+| **Inclinación Cabeza Der** | Acción configurable (Vol+) | ✅ Umbrales optimizados | 🟢 Activo |
 | **Mirada fija** | Preselección inteligente | ✅ Estabilidad ocular | 🟢 Activo |
 | **Ojos cerrados (2s)** | Pausa de emergencia | ✅ Control inmediato | 🟢 Activo |
 | **Levantar ceja** | Menú contextual | ✅ Sensibilidad ajustada | 🟢 Activo |
-| **Abrir boca** | Confirmar acciones | ✅ Umbral personalizado | 🟢 Activo |
+| **Abrir boca** | Confirmar acciones / Click | ✅ Umbral personalizado | 🟢 Activo |
 
 ### 🤖 Estados del Sistema (Máquina de Estados Inteligente)
 
@@ -342,7 +342,7 @@ Cada perfil incluye automáticamente:
 - **Filtros**: Alfa exponencial personalizable
 
 #### **👁️ Umbrales de Gestos (Auto-calibrados)**
-- **Parpadeo**: 0.15-0.40 (optimizado por calibración automática)
+- **Inclinación Cabeza**: 0.05-0.20 (optimizado por calibración automática de orejas)
 - **Cejas**: 0.08-0.25 (basado en características faciales)
 - **Boca**: 0.05-0.15 (análisis de apertura natural)
 
@@ -545,7 +545,7 @@ Para preguntas, soporte o colaboraciones:
 - 🎯 **Precisión IA**: Calibración automática elimina falsos positivos por completo
 - 🌐 **Distribución Lista**: Scripts electron-builder configurados para todos los SO
 - 📜 **Licencia Compliant**: GPL 3.0 con términos éticos de accesibilidad incluidos
-- 🎮 **UX Completa**: Todos los botones (CONFIG, CALIBRAR, PAUSA) funcionalmente perfectos
+- 🎮 **UX Mejorada**: Botón de **PAUSA** con alternancia (toggle) y redimensión automática de configuración
 
 ### 🚀 **Distribución Inmediata Disponible**
 

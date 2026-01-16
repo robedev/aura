@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;">
   <title>Aura - El Sexto Sentido</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -54,10 +55,12 @@
 
     .main-container {
       display: grid;
-      grid-template-columns: 1fr 300px;
+      grid-template-columns: 320px 300px;
+      /* Reduced camera size */
       gap: 15px;
       padding: 15px;
-      flex-grow: 1;
+      justify-content: center;
+      /* Center the content */
     }
 
     .view-container {
@@ -66,6 +69,8 @@
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid #222;
+      height: 200px;
+      /* Reduced vertical size (approx 50%) */
     }
 
     #video {
@@ -73,6 +78,9 @@
       height: 100%;
       object-fit: cover;
       opacity: 0.6;
+      transform: scale(1.5) rotateY(180deg);
+      /* Mirror effect + Zoom */
+      transform-origin: center;
     }
 
     #canvas {
@@ -81,6 +89,9 @@
       left: 0;
       width: 100%;
       height: 100%;
+      transform: scale(1.5) rotateY(180deg);
+      /* Match video transform */
+      transform-origin: center;
     }
 
     .panel {
@@ -176,19 +187,21 @@
 </head>
 
 <body>
-    <div class="header">
-      <div style="display: flex; flex-direction: column; align-items: flex-start;">
-        <div style="display: flex; align-items: center; gap: 15px;">
-          <h1>AURA EXPERIMENTAL</h1>
-          <div id="debug-indicator" style="background: rgba(255, 165, 0, 0.9); color: black; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; display: none;">
-            🛠️ DEBUG MODE
-          </div>
+  <div class="header">
+    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <h1>AURA EXPERIMENTAL</h1>
+        <div id="debug-indicator"
+          style="background: rgba(255, 165, 0, 0.9); color: black; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; display: none;">
+          🛠️ DEBUG MODE
         </div>
-        <div id="platform-info" style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;"></div>
-        <div id="camera-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
-        <div id="calibration-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
       </div>
+      <div id="platform-info" style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;"></div>
+      <div id="camera-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
+      <div id="calibration-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
+    </div>
     <div class="controls">
+      <button id="toggleKeyboard">⌨️ TECLADO</button>
       <button id="settings">⚙️ CONFIG</button>
       <button id="calibrate">CALIBRAR</button>
       <button id="pause" style="color: #ff4444; border-color: #ff4444;">PAUSA</button>
@@ -226,7 +239,8 @@
           style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
           <option value="eyebrowRaise">Levantar ceja</option>
           <option value="mouthOpen">Abrir boca</option>
-          <option value="blink">Parpadeo</option>
+          <option value="headTiltLeft">Inclinar cabeza izq</option>
+          <option value="headTiltRight">Inclinar cabeza der</option>
         </select>
         <select id="actionSelect"
           style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
@@ -257,7 +271,8 @@
   </div>
 
   <!-- Panel de Configuración Avanzada -->
-  <div id="settingsPanel" style="display: none; padding: 15px; background: var(--glass); margin: 0 15px 15px 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+  <div id="settingsPanel"
+    style="display: none; padding: 15px; background: var(--glass); margin: 0 15px 15px 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
     <h3 style="margin-top: 0; color: var(--accent);">⚙️ CONFIGURACIÓN AVANZADA</h3>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -284,8 +299,8 @@
 
       <div class="setting-group">
         <h4>Umbrales de Gestos</h4>
-        <label>Parpadeo: <span id="blinkValue">0.02</span></label>
-        <input type="range" id="blinkThreshold" min="0.01" max="0.1" step="0.01" value="0.02">
+        <label>Inclinación Cabeza: <span id="headTiltValue">0.15</span></label>
+        <input type="range" id="headTiltThreshold" min="0.01" max="0.3" step="0.01" value="0.15">
         <br>
         <label>Cejas: <span id="eyebrowValue">0.05</span></label>
         <input type="range" id="eyebrowThreshold" min="0.02" max="0.15" step="0.01" value="0.05">
@@ -322,10 +337,15 @@
   </div>
 
   <div style="padding: 0 15px 15px 15px;">
-    <div class="keyboard" id="keyboard"></div>
+    <!-- Smart Keyboard v2 Container -->
+    <div id="smartKeyboard" class="smart-keyboard-container"></div>
   </div>
 
+  <link rel="stylesheet" href="styles/smart-keyboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="../vision/face-tracking.js"></script>
+  <script src="services/Predictor.js"></script>
   <script src="app.js"></script>
 </body>
 

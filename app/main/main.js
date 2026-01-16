@@ -15,7 +15,7 @@ let faceTracker = null;
 profile.rules.forEach(r => {
   const condition = { [r.gesture]: true };
   let action;
-  switch(r.action) {
+  switch (r.action) {
     case 'click':
       action = 'click';
       break;
@@ -99,8 +99,7 @@ function createWindow() {
     width: 900,
     height: 700,
     alwaysOnTop: true,
-    frame: false,
-    transparent: true,
+    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -111,10 +110,10 @@ function createWindow() {
   mainWindow.loadFile('app/renderer/index.html');
 
   // Enable DevTools for debugging
-  mainWindow.webContents.openDevTools({
-    mode: 'detach', // Open in separate window
-    activate: false // Don't bring to front automatically
-  });
+  // mainWindow.webContents.openDevTools({
+  //   mode: 'detach', // Open in separate window
+  //   activate: false // Don't bring to front automatically
+  // });
 
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('Main window loaded, sending profile data');
@@ -234,7 +233,7 @@ ipcMain.on('add-rule', (event, rule) => {
 
   const condition = { [rule.gesture]: true };
   let action;
-  switch(rule.action) {
+  switch (rule.action) {
     case 'click':
       action = 'click';
       break;
@@ -275,7 +274,7 @@ ipcMain.on('remove-rule', (event, index) => {
   profileManager.currentProfile.rules.forEach(r => {
     const condition = { [r.gesture]: true };
     let action;
-    switch(r.action) {
+    switch (r.action) {
       case 'click':
         action = 'click';
         break;
@@ -438,6 +437,11 @@ ipcMain.on('middle-click', () => osController.clickMouse('middle'));
 ipcMain.on('minimize-window', () => osController.minimizeWindow());
 ipcMain.on('maximize-window', () => osController.maximizeWindow());
 ipcMain.on('close-window', () => osController.closeWindow());
+ipcMain.on('resize-window', (event, width, height) => {
+  if (mainWindow) {
+    mainWindow.setSize(width, height);
+  }
+});
 
 // Advanced keyboard shortcuts
 ipcMain.on('copy', () => osController.copy());
@@ -497,7 +501,18 @@ async function performGracefulShutdown(signal = 'unknown') {
 process.on('SIGINT', () => performGracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => performGracefulShutdown('SIGTERM'));
 
-// Handle uncaught exceptions
+// Handle unexpected exits
+process.on('exit', (code) => {
+  console.log('📴 Process exit with code:', code);
+});
+
+process.on('SIGTERM', () => {
+  console.log('📴 Received SIGTERM signal');
+});
+
+process.on('SIGINT', () => {
+  console.log('📴 Received SIGINT signal');
+});
 process.on('uncaughtException', (error) => {
   console.error('💥 Uncaught Exception:', error);
   performGracefulShutdown('uncaughtException');
@@ -509,9 +524,13 @@ process.on('unhandledRejection', (reason, promise) => {
   performGracefulShutdown('unhandledRejection');
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  console.log('✅ app.whenReady() resolved');
+  createWindow();
+});
 
 app.on('window-all-closed', async () => {
+  console.log('🧹 window-all-closed event fired');
   console.log('🧹 Application window closed, performing final cleanup...');
 
   // Wait for any pending operations

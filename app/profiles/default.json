@@ -2,12 +2,12 @@
   "name": "Perfil Predeterminado",
   "sensitivity": {
     "headMovement": 0.5,
-    "blinkThreshold": 0.02
+    "headTiltThreshold": 0.15
   },
   "gestures": {
     "enabled": [
       "head_move",
-      "blink_click"
+      "head_tilt"
     ]
   },
   "thresholds": {
@@ -18,7 +18,8 @@
     "eyebrowThreshold": 0.15,
     "mouthThreshold": 0.08,
     "emergencyTime": 2000,
-    "executionCooldown": 800
+    "executionCooldown": 800,
+    "headTiltThreshold": 0.15
   },
   "adaptive": {
     "enabled": true,
@@ -30,18 +31,16 @@
   "rules": [
     {
       "gesture": "mouthOpen",
-      "action": "save-file",
-      "param": ""
-    },
-    {
-      "gesture": "eyebrowRaise",
-      "action": "minimize-window",
+      "action": "volume-up",
       "param": ""
     }
   ],
   "calibration": {
-    "neutralPose": null,
-    "lastCalibrated": null,
+    "neutralPose": {
+      "x": 0.5386914610862732,
+      "y": 0.5065638422966003
+    },
+    "lastCalibrated": "2026-01-16T17:15:02.419Z",
     "adaptationHistory": []
   }
 }

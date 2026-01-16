@@ -30,11 +30,12 @@ class FaceTracker {
       dwellTime: thresholds.dwellTime || 1000,
       stabilityThreshold: thresholds.stabilityThreshold || 10,
       deadZonePercent: thresholds.deadZonePercent || 0.1,
-      blinkThreshold: thresholds.blinkThreshold || 0.02,
-      eyebrowThreshold: thresholds.eyebrowThreshold || 0.05,
-      mouthThreshold: thresholds.mouthThreshold || 0.03,
+      blinkThreshold: thresholds.blinkThreshold || 0.30,
+      eyebrowThreshold: thresholds.eyebrowThreshold || 0.20,
+      mouthThreshold: thresholds.mouthThreshold || 0.15,
       emergencyTime: thresholds.emergencyTime || 2000,
-      executionCooldown: thresholds.executionCooldown || 800
+      executionCooldown: thresholds.executionCooldown || 800,
+      headTiltThreshold: thresholds.headTiltThreshold || 0.15 // New threshold for head tilt
     };
 
     // State machine
@@ -76,7 +77,7 @@ class FaceTracker {
     this.adaptiveThresholds = {
       dwellTime: this.thresholds.dwellTime,
       stabilityThreshold: this.thresholds.stabilityThreshold,
-      blinkThreshold: this.thresholds.blinkThreshold
+      headTiltThreshold: this.thresholds.headTiltThreshold
     };
   }
 
@@ -170,16 +171,17 @@ class FaceTracker {
     const gestures = this.detectGestures(landmarks);
 
     // Emergency check
-    if (gestures.bothEyesClosed) {
-      if (!this.emergencyStart) {
-        this.emergencyStart = Date.now();
-      } else if (Date.now() - this.emergencyStart > currentThresholds.emergencyTime) {
-        ipc.send('pause');
-        this.emergencyStart = null;
-      }
-    } else {
-      this.emergencyStart = null;
-    }
+    // Temporarily disabled for testing
+    // if (gestures.bothEyesClosed) {
+    //   if (!this.emergencyStart) {
+    //     this.emergencyStart = Date.now();
+    //   } else if (Date.now() - this.emergencyStart > currentThresholds.emergencyTime) {
+    //     ipc.send('pause');
+    //     this.emergencyStart = null;
+    //   }
+    // } else {
+    //   this.emergencyStart = null;
+    // }
 
     // State machine logic
     switch (this.state) {
@@ -249,13 +251,14 @@ class FaceTracker {
         }
         this.lastMousePos = { x: filteredX, y: filteredY };
 
-        // Alternative: blink to preselection
-        if (gestures.blink) {
+        // Alternative: mouth gesture to preselection
+        if (gestures.mouthOpen) {
           this.setState('preselection');
         }
         break;
       case 'preselection':
-        if (gestures.blink) {
+        // Confirm action with mouthOpen (replacing blink)
+        if (gestures.mouthOpen) {
           this.setState('executing');
           this.recordAction('click');
           window.auraAPI.send('click-mouse', 'left');
@@ -283,36 +286,59 @@ class FaceTracker {
     this.lastGestures = gestures; // For debug
     window.auraAPI.send('gesture-update', gestures);
 
-    // Send blink event specifically for keyboard scanning
-    if (gestures.blink) {
-      window.auraAPI.send('blink-detected');
+    // Send mouth event specifically for keyboard scanning (replacing blink)
+    if (gestures.mouthOpen) {
+      window.auraAPI.send('blink-detected'); // Keep event name for compatibility or change it? 
+      // Better to keep the semantic meaning if the listener expects "activation"
+      // But for clarity let's assume the listener handles generic activation
     }
   }
 
   detectGestures(landmarks) {
-    const gestures = { faceDetected: true, blink: false, eyebrowRaise: false, bothEyesClosed: false };
+    const gestures = {
+      faceDetected: true,
+      eyebrowRaise: false,
+      mouthOpen: false,
+      headTiltLeft: false,
+      headTiltRight: false
+    };
     const currentThresholds = this.getCurrentThresholds();
 
-    // Detect blink (left eye)
-    const leftEyeUpper = landmarks[159];
-    const leftEyeLower = landmarks[145];
-    const leftEyeDistance = Math.abs(leftEyeUpper.y - leftEyeLower.y);
-    const leftClosed = leftEyeDistance < currentThresholds.blinkThreshold;
+    // REMOVED BLINK DETECTION
+    // User requested to eliminate blink rules.
 
-    // Right eye (approximate landmarks)
-    const rightEyeUpper = landmarks[386];
-    const rightEyeLower = landmarks[374];
-    const rightEyeDistance = Math.abs(rightEyeUpper.y - rightEyeLower.y);
-    const rightClosed = rightEyeDistance < currentThresholds.blinkThreshold;
+    // Detect Head Tilt (Roll)
+    // Using ear landmarks: Left (234), Right (454)
+    // Note: MediaPipe x,y are normalized 0-1.
+    const leftEar = landmarks[234];
+    const rightEar = landmarks[454];
 
-    if (leftClosed) {
-      gestures.blink = true;
-    }
-    if (leftClosed && rightClosed) {
-      gestures.bothEyesClosed = true;
+    // Calculate vertical difference. 
+    // If head is level, y diff is small.
+    // If tilted left (user's left, screen right), left ear goes down (y increases), right ear goes up (y decreases).
+    // Wait, coordinate system: y increases downwards.
+    // Tilt Left (Ear to shoulder): Left ear y > Right ear y significantly? 
+    // Standard: Left Ear Y should be roughly equal to Right Ear Y.
+    const earYDiff = leftEar.y - rightEar.y; // Positive if Left detected lower (tilted left?) or higher?
+
+    // Actually, let's use explicit calculation
+    // If I tilt my head to my Left Shoulder: 
+    // My Left Ear moves Down (Y increases). My Right Ear moves Up (Y decreases).
+    // So leftEar.y > rightEar.y
+    // Diff > Threshold -> Tilt Left
+
+    // If I tilt to Right Shoulder:
+    // Right Ear moves Down (Y increases). Left Ear moves Up.
+    // rightEar.y > leftEar.y  =>  leftEar.y - rightEar.y < -Threshold
+
+    if (earYDiff > (currentThresholds.headTiltThreshold || 0.05)) {
+      gestures.headTiltLeft = true;
+    } else if (earYDiff < -(currentThresholds.headTiltThreshold || 0.05)) {
+      gestures.headTiltRight = true;
     }
 
     // Detect eyebrow raise (improved) - Use already declared leftEyeUpper
+    const leftEyeUpper = landmarks[159];
     const leftEyebrow = landmarks[70];
     if (leftEyeUpper.y - leftEyebrow.y > currentThresholds.eyebrowThreshold) {
       gestures.eyebrowRaise = true;
@@ -479,7 +505,7 @@ class FaceTracker {
       if (session.usageStats) {
         totalActions += session.usageStats.totalActions || 0;
         const accidentalRate = (session.usageStats.accidentalActivations || 0) /
-                              Math.max(session.usageStats.totalActions || 1, 1);
+          Math.max(session.usageStats.totalActions || 1, 1);
         totalAccidentalRate += accidentalRate;
 
         // Collect successful threshold adaptations
@@ -520,7 +546,7 @@ class FaceTracker {
     this.adaptiveThresholds = {
       dwellTime: this.thresholds.dwellTime,
       stabilityThreshold: this.thresholds.stabilityThreshold,
-      blinkThreshold: this.thresholds.blinkThreshold
+      headTiltThreshold: this.thresholds.headTiltThreshold
     };
 
     console.log('FaceTracker thresholds updated:', this.thresholds);
@@ -549,11 +575,11 @@ class FaceTracker {
       const rightEyeDistance = Math.abs(landmarks[386].y - landmarks[374].y);
       const eyebrowDistance = landmarks[159].y - landmarks[70].y;
       const mouthDistance = Math.abs(landmarks[13].y - landmarks[14].y);
+      const earYDiff = Math.abs(landmarks[234].y - landmarks[454].y); // Abs diff for variance calc
 
       this.calibrationData.samples.push({
         timestamp: now,
-        leftEyeDistance,
-        rightEyeDistance,
+        earYDiff,
         eyebrowDistance,
         mouthDistance
       });
@@ -571,26 +597,25 @@ class FaceTracker {
     const samples = this.calibrationData.samples;
 
     // Calculate baseline measurements (natural state)
-    const avgLeftEye = samples.reduce((sum, s) => sum + s.leftEyeDistance, 0) / samples.length;
-    const avgRightEye = samples.reduce((sum, s) => sum + s.rightEyeDistance, 0) / samples.length;
+    // Calculate baseline measurements (natural state)
+    const avgEarDiff = samples.reduce((sum, s) => sum + s.earYDiff, 0) / samples.length;
     const avgEyebrow = samples.reduce((sum, s) => sum + s.eyebrowDistance, 0) / samples.length;
     const avgMouth = samples.reduce((sum, s) => sum + s.mouthDistance, 0) / samples.length;
 
     // Calculate standard deviations for sensitivity
-    const leftEyeVariance = samples.reduce((sum, s) => sum + Math.pow(s.leftEyeDistance - avgLeftEye, 2), 0) / samples.length;
-    const rightEyeVariance = samples.reduce((sum, s) => sum + Math.pow(s.rightEyeDistance - avgRightEye, 2), 0) / samples.length;
+    const earYVariance = samples.reduce((sum, s) => sum + Math.pow(s.earYDiff - avgEarDiff, 2), 0) / samples.length;
     const eyebrowVariance = samples.reduce((sum, s) => sum + Math.pow(s.eyebrowDistance - avgEyebrow, 2), 0) / samples.length;
     const mouthVariance = samples.reduce((sum, s) => sum + Math.pow(s.mouthDistance - avgMouth, 2), 0) / samples.length;
 
     // Set calibrated thresholds based on natural variation + safety margin
     this.calibrationData.calibratedThresholds = {
-      blinkThreshold: Math.max(avgLeftEye * 0.7, Math.sqrt(leftEyeVariance) * 2), // 70% of natural eye opening or 2x std dev
+      headTiltThreshold: Math.max(0.05, Math.sqrt(earYVariance) * 3), // 3x std dev of natural tilt
       eyebrowThreshold: Math.max(avgEyebrow * 0.6, Math.sqrt(eyebrowVariance) * 2.5), // 60% of natural eyebrow position
       mouthThreshold: Math.max(avgMouth * 0.8, Math.sqrt(mouthVariance) * 3) // 80% of natural mouth opening
     };
 
     // Apply safety bounds
-    this.calibrationData.calibratedThresholds.blinkThreshold = Math.max(0.15, Math.min(0.4, this.calibrationData.calibratedThresholds.blinkThreshold));
+    this.calibrationData.calibratedThresholds.headTiltThreshold = Math.max(0.02, Math.min(0.2, this.calibrationData.calibratedThresholds.headTiltThreshold));
     this.calibrationData.calibratedThresholds.eyebrowThreshold = Math.max(0.08, Math.min(0.25, this.calibrationData.calibratedThresholds.eyebrowThreshold));
     this.calibrationData.calibratedThresholds.mouthThreshold = Math.max(0.05, Math.min(0.15, this.calibrationData.calibratedThresholds.mouthThreshold));
 
@@ -610,7 +635,7 @@ class FaceTracker {
     if (this.calibrationData.calibratedThresholds) {
       return {
         ...this.thresholds,
-        blinkThreshold: this.calibrationData.calibratedThresholds.blinkThreshold,
+        headTiltThreshold: this.calibrationData.calibratedThresholds.headTiltThreshold,
         eyebrowThreshold: this.calibrationData.calibratedThresholds.eyebrowThreshold,
         mouthThreshold: this.calibrationData.calibratedThresholds.mouthThreshold,
         // Keep adaptive adjustments for dwell time and stability
@@ -648,12 +673,12 @@ class FaceTracker {
     const baseAdaptive = {
       dwellTime: this.thresholds.dwellTime,
       stabilityThreshold: this.thresholds.stabilityThreshold,
-      blinkThreshold: this.thresholds.blinkThreshold
+      headTiltThreshold: this.thresholds.headTiltThreshold
     };
 
     // If we have historical optimizations, start with those instead of base
     if (this.adaptiveThresholds.dwellTime !== this.thresholds.dwellTime ||
-        this.adaptiveThresholds.stabilityThreshold !== this.thresholds.stabilityThreshold) {
+      this.adaptiveThresholds.stabilityThreshold !== this.thresholds.stabilityThreshold) {
       // Keep historical optimizations
       baseAdaptive.dwellTime = this.adaptiveThresholds.dwellTime;
       baseAdaptive.stabilityThreshold = this.adaptiveThresholds.stabilityThreshold;
