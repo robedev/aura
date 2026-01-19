@@ -4,6 +4,9 @@
 class FaceTracker {
   constructor(thresholds = {}) {
     console.log('Creating FaceTracker with thresholds:', thresholds);
+    
+    this.canvasElement = null;
+    this.canvasCtx = null;
 
     try {
       this.faceMesh = new FaceMesh({
@@ -94,8 +97,16 @@ class FaceTracker {
     };
   }
 
-  start(videoElement) {
+  start(videoElement, canvasElement) {
     console.log('Starting FaceTracker camera...');
+    
+    if (canvasElement) {
+      this.canvasElement = canvasElement;
+      this.canvasCtx = canvasElement.getContext('2d');
+      // Match internal resolution to camera resolution
+      this.canvasElement.width = 1280;
+      this.canvasElement.height = 720;
+    }
 
     // Initialize IPC listeners on start (when auraAPI is guaranteed to exist)
     if (!this.ipcInitialized) {
@@ -185,6 +196,41 @@ class FaceTracker {
   }
 
   onResults(results) {
+    // Draw the landmarks on the canvas
+    if (this.canvasCtx && this.canvasElement) {
+      this.canvasCtx.save();
+      this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+      
+      // CSS handles the visual alignment (mirror + zoom)
+      // We draw in standard normalized coordinates mapped to canvas size
+      
+      if (results.multiFaceLandmarks) {
+        for (const landmarks of results.multiFaceLandmarks) {
+          // Draw mesh connectors (tesselation)
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_TESSELATION,
+                         {color: '#C0C0C070', lineWidth: 1});
+          
+          // Draw eyes and eyebrows
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#FF3030'});
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_RIGHT_EYEBROW, {color: '#FF3030'});
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#30FF30'});
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_LEFT_EYEBROW, {color: '#30FF30'});
+          
+          // Draw face oval
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_FACE_OVAL, {color: '#E0E0E0'});
+          
+          // Draw lips
+          drawConnectors(this.canvasCtx, landmarks, FACEMESH_LIPS, {color: '#E0E0E0'});
+          
+          // Draw iris
+          if (typeof FACEMESH_IRIS !== 'undefined') {
+            drawConnectors(this.canvasCtx, landmarks, FACEMESH_IRIS, {color: '#E0E0E0', lineWidth: 1});
+          }
+        }
+      }
+      this.canvasCtx.restore();
+    }
+
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
       // No face, go to inactive
       this.setState('inactive');

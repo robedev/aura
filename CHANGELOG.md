@@ -1,5 +1,22 @@
 # Aura - Registro de Cambios
 
+---
+
+## [2.3.0] - 2026-01-19 - VISUALIZACIÓN AVANZADA Y SINCRONIZACIÓN 👁️
+
+Mejoras significativas en el feedback visual y la precisión de la realidad aumentada.
+
+### 👁️ **MALLA FACIAL SINCRONIZADA**
+- ✅ **Feedback Visual en Tiempo Real**: Visualización de la malla facial (478 puntos) sobre el rostro del usuario.
+- ✅ **Sincronización Perfecta**: Alineación 1:1 entre el vídeo de la cámara y la malla gráfica, corrigiendo problemas de zoom y espejo.
+- ✅ **Indicadores de Estado**: Colores dinámicos en la malla (Rojo/Verde) para indicar detección de ojos y cejas.
+
+### 🔧 **CORRECCIONES TÉCNICAS**
+- ✅ **Fix de Alineación Canvas/Video**: Solución al desajuste de coordenadas causado por transformaciones CSS.
+- ✅ **Optimización de Renderizado**: Dibujado eficiente usando `requestAnimationFrame` implícito en el loop de MediaPipe.
+
+---
+
 ## [2.2.0] - 2026-01-19 - ESTABILIDAD, GESTOS AVANZADOS Y UX ✨
 
 Actualización enfocada en la ergonomía, robustez del sistema y experiencia de usuario.

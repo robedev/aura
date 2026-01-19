@@ -290,9 +290,10 @@ try {
       window.faceTracker = faceTracker;
 
       const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
       if (video) {
-        console.log('Starting FaceTracker with video element');
-        faceTracker.start(video);
+        console.log('Starting FaceTracker with video and canvas elements');
+        faceTracker.start(video, canvas);
         console.log('✅ FaceTracker initialized successfully');
 
         // Show camera status
