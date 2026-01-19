@@ -56,6 +56,16 @@ class FaceTracker {
     this.neutralPose = null; // Store neutral pose for calibration
     this.calibrating = false;
 
+    // Trackers for sustained and compound gestures
+    this.sustainedStates = {
+      mouthOpen: { start: null, duration: 500 },
+      headTiltLeft: { start: null, duration: 1000 },
+      headTiltRight: { start: null, duration: 1000 }
+    };
+    this.pauseStart = null;
+    this.lastRawPos = null;
+    this.filteredDelta = null;
+
     // Adaptive learning data
     this.usageStats = {
       totalActions: 0,
@@ -252,6 +262,18 @@ class FaceTracker {
         const deltaXRaw = rawX - this.lastRawPos.x;
         const deltaYRaw = rawY - this.lastRawPos.y;
         
+        // Update stability for dwellGaze
+        const dist = Math.sqrt(deltaXRaw**2 + deltaYRaw**2);
+        // Stability threshold is typically 10-30 pixels. In normalized 0-1 coords, 
+        // 10 pixels on a 1920 screen is approx 0.005.
+        const normalizedStabilityThreshold = (currentThresholds.stabilityThreshold || 10) / 2000;
+        
+        if (dist < normalizedStabilityThreshold) {
+            if (!this.stableStart) this.stableStart = Date.now();
+        } else {
+            this.stableStart = null;
+        }
+        
         // Update last pos
         this.lastRawPos = { x: rawX, y: rawY };
 
@@ -266,20 +288,54 @@ class FaceTracker {
 
         // Apply Dead Zone to DELTA (ignore very small movements)
         const deadZone = this.getCurrentThresholds().deadZonePercent * 10; // Simple threshold
-        if (Math.abs(dx) < deadZone) dx = 0;
-        if (Math.abs(dy) < deadZone) dy = 0;
+        
+        // Sophisticated Smoothing: Adaptive Weighted Moving Average
+        // If movement is fast, use less smoothing (responsive).
+        // If movement is slow, use more smoothing (stable).
+        
+        const movementMagnitude = Math.sqrt(dx*dx + dy*dy);
+        
+        // Dynamic Alpha: 
+        // fast movement (>50px) -> alpha ~ 0.8 (responsive)
+        // slow movement (<5px)  -> alpha ~ 0.1 (very smooth)
+        let dynamicAlpha = Math.min(0.9, Math.max(0.05, movementMagnitude / 60));
+        
+        // Deadzone check with ramping (avoids jerky start)
+        if (movementMagnitude < deadZone) {
+            dx = 0;
+            dy = 0;
+            // When stopped, reset filter to current pos to avoid "drift" on restart
+            if (this.filteredDelta) {
+                 this.filteredDelta.x = 0;
+                 this.filteredDelta.y = 0;
+            }
+        } else {
+            // Soften the transition out of deadzone
+            const ratio = (movementMagnitude - deadZone) / movementMagnitude;
+            dx *= ratio;
+            dy *= ratio;
+        }
 
         // Apply smoothing to DELTA
         if (!this.filteredDelta) {
             this.filteredDelta = { x: dx, y: dy };
         } else {
-            const alpha = 0.5; // Smoothing factor
-            this.filteredDelta.x = alpha * dx + (1 - alpha) * this.filteredDelta.x;
-            this.filteredDelta.y = alpha * dy + (1 - alpha) * this.filteredDelta.y;
+            this.filteredDelta.x = dynamicAlpha * dx + (1 - dynamicAlpha) * this.filteredDelta.x;
+            this.filteredDelta.y = dynamicAlpha * dy + (1 - dynamicAlpha) * this.filteredDelta.y;
         }
         
-        const moveX = Math.round(this.filteredDelta.x);
-        const moveY = Math.round(this.filteredDelta.y);
+        // Use accumulated fraction to prevent pixel loss on slow movements
+        if (!this.residualMouse) this.residualMouse = { x: 0, y: 0 };
+        
+        const totalMoveX = this.filteredDelta.x + this.residualMouse.x;
+        const totalMoveY = this.filteredDelta.y + this.residualMouse.y;
+        
+        const moveX = Math.round(totalMoveX);
+        const moveY = Math.round(totalMoveY);
+        
+        // Store remainder for next frame
+        this.residualMouse.x = totalMoveX - moveX;
+        this.residualMouse.y = totalMoveY - moveY;
 
         if (moveX !== 0 || moveY !== 0) {
              // Throttle IPC
@@ -358,61 +414,135 @@ class FaceTracker {
   }
 
   detectGestures(landmarks) {
+    const currentThresholds = this.getCurrentThresholds();
+    const now = Date.now();
+
     const gestures = {
       faceDetected: true,
       eyebrowRaise: false,
+      eyebrowRaiseLeft: false,
+      eyebrowRaiseRight: false,
       mouthOpen: false,
+      mouthOpenSustained: false,
+      smileLeft: false,
+      smileRight: false,
       headTiltLeft: false,
-      headTiltRight: false
+      headTiltRight: false,
+      headTiltLeftSustained: false,
+      headTiltRightSustained: false,
+      dwellGaze: false,
+      gazeUp: false,
+      gazeExtremeLeft: false,
+      gazeExtremeRight: false,
+      pauseCompound: false
     };
-    const currentThresholds = this.getCurrentThresholds();
 
-    // REMOVED BLINK DETECTION
-    // User requested to eliminate blink rules.
-
-    // Detect Head Tilt (Roll)
-    // Using ear landmarks: Left (234), Right (454)
-    // Note: MediaPipe x,y are normalized 0-1.
+    // 1. Head Tilt (Roll) - Using ear landmarks
     const leftEar = landmarks[234];
     const rightEar = landmarks[454];
-
-    // Calculate vertical difference. 
-    // If head is level, y diff is small.
-    // If tilted left (user's left, screen right), left ear goes down (y increases), right ear goes up (y decreases).
-    // Wait, coordinate system: y increases downwards.
-    // Tilt Left (Ear to shoulder): Left ear y > Right ear y significantly? 
-    // Standard: Left Ear Y should be roughly equal to Right Ear Y.
-    const earYDiff = leftEar.y - rightEar.y; // Positive if Left detected lower (tilted left?) or higher?
-
-    // Actually, let's use explicit calculation
-    // If I tilt my head to my Left Shoulder: 
-    // My Left Ear moves Down (Y increases). My Right Ear moves Up (Y decreases).
-    // So leftEar.y > rightEar.y
-    // Diff > Threshold -> Tilt Left
-
-    // If I tilt to Right Shoulder:
-    // Right Ear moves Down (Y increases). Left Ear moves Up.
-    // rightEar.y > leftEar.y  =>  leftEar.y - rightEar.y < -Threshold
+    const earYDiff = leftEar.y - rightEar.y;
 
     if (earYDiff > (currentThresholds.headTiltThreshold || 0.05)) {
       gestures.headTiltLeft = true;
-    } else if (earYDiff < -(currentThresholds.headTiltThreshold || 0.05)) {
-      gestures.headTiltRight = true;
+      if (!this.sustainedStates.headTiltLeft.start) this.sustainedStates.headTiltLeft.start = now;
+      if (now - this.sustainedStates.headTiltLeft.start > this.sustainedStates.headTiltLeft.duration) {
+        gestures.headTiltLeftSustained = true;
+      }
+    } else {
+      this.sustainedStates.headTiltLeft.start = null;
     }
 
-    // Detect eyebrow raise (improved) - Use already declared leftEyeUpper
+    if (earYDiff < -(currentThresholds.headTiltThreshold || 0.05)) {
+      gestures.headTiltRight = true;
+      if (!this.sustainedStates.headTiltRight.start) this.sustainedStates.headTiltRight.start = now;
+      if (now - this.sustainedStates.headTiltRight.start > this.sustainedStates.headTiltRight.duration) {
+        gestures.headTiltRightSustained = true;
+      }
+    } else {
+      this.sustainedStates.headTiltRight.start = null;
+    }
+
+    // 2. Eyebrows (Unilateral detection)
     const leftEyeUpper = landmarks[159];
     const leftEyebrow = landmarks[70];
-    if (leftEyeUpper.y - leftEyebrow.y > currentThresholds.eyebrowThreshold) {
-      gestures.eyebrowRaise = true;
-    }
+    const rightEyeUpper = landmarks[386];
+    const rightEyebrow = landmarks[300];
 
-    // Detect mouth opening
+    const leftRaise = leftEyeUpper.y - leftEyebrow.y;
+    const rightRaise = rightEyeUpper.y - rightEyebrow.y;
+
+    if (leftRaise > currentThresholds.eyebrowThreshold) gestures.eyebrowRaiseLeft = true;
+    if (rightRaise > currentThresholds.eyebrowThreshold) gestures.eyebrowRaiseRight = true;
+    gestures.eyebrowRaise = gestures.eyebrowRaiseLeft || gestures.eyebrowRaiseRight;
+
+    // 3. Mouth (Opening and sustained)
     const mouthUpper = landmarks[13];
     const mouthLower = landmarks[14];
-    if (Math.abs(mouthUpper.y - mouthLower.y) > currentThresholds.mouthThreshold) {
+    const mouthGap = Math.abs(mouthUpper.y - mouthLower.y);
+
+    if (mouthGap > currentThresholds.mouthThreshold) {
       gestures.mouthOpen = true;
+      if (!this.sustainedStates.mouthOpen.start) this.sustainedStates.mouthOpen.start = now;
+      if (now - this.sustainedStates.mouthOpen.start > this.sustainedStates.mouthOpen.duration) {
+        gestures.mouthOpenSustained = true;
+      }
+    } else {
+      this.sustainedStates.mouthOpen.start = null;
     }
+
+    // 4. Smile (Asymmetric) - Detect mouth corner elevation
+    const mouthLeftCorner = landmarks[61];
+    const mouthRightCorner = landmarks[291];
+    
+    // Y increases downwards, so a smile (corner moving UP) means Y decreases.
+    // We compare each corner relative to the mouth center/baseline.
+    const mouthCenterY = (mouthUpper.y + mouthLower.y) / 2;
+    const smileThreshold = 0.015;
+    
+    if (mouthCenterY - mouthLeftCorner.y > smileThreshold) gestures.smileLeft = true;
+    if (mouthCenterY - mouthRightCorner.y > smileThreshold) gestures.smileRight = true;
+
+    // 5. Gaze / Iris (Extreme movements)
+    if (landmarks.length > 473) {
+      const leftIris = landmarks[468];
+      const rightIris = landmarks[473];
+      
+      const leftEyeOuter = landmarks[33];
+      const leftEyeInner = landmarks[133];
+      const rightEyeInner = landmarks[362];
+      const rightEyeOuter = landmarks[263];
+      
+      const leftEyeCenter = { x: (leftEyeOuter.x + leftEyeInner.x) / 2, y: (leftEyeOuter.y + leftEyeInner.y) / 2 };
+      const rightEyeCenter = { x: (rightEyeOuter.x + rightEyeInner.x) / 2, y: (rightEyeOuter.y + rightEyeInner.y) / 2 };
+      
+      const avgGazeX = (leftIris.x - leftEyeCenter.x + rightIris.x - rightEyeCenter.x) / 2;
+      const avgGazeY = (leftIris.y - leftEyeCenter.y + rightIris.y - rightEyeCenter.y) / 2;
+      
+      const gazeThresholdX = 0.02;
+      const gazeThresholdY = 0.01;
+      
+      if (avgGazeY < -gazeThresholdY) gestures.gazeUp = true;
+      if (avgGazeX < -gazeThresholdX) gestures.gazeExtremeLeft = true;
+      if (avgGazeX > gazeThresholdX) gestures.gazeExtremeRight = true;
+    }
+
+    // 6. Dwell Gaze (Stability detection)
+    if (this.stableStart && (now - this.stableStart > currentThresholds.dwellTime)) {
+      gestures.dwellGaze = true;
+    }
+
+    // 7. Pause Compound
+    // Gesto compuesto de pausa: Mirada arriba + ceja levantada + boca cerrada (1s)
+    if (gestures.gazeUp && gestures.eyebrowRaise && !gestures.mouthOpen) {
+      if (!this.pauseStart) this.pauseStart = now;
+      if (now - this.pauseStart > 1000) gestures.pauseCompound = true;
+    } else {
+      this.pauseStart = null;
+    }
+
+    // 8. Combined Gestures (Recommended for AURA)
+    gestures.dwellPlusEyebrowRaise = gestures.dwellGaze && gestures.eyebrowRaise;
+    gestures.dwellPlusMouthOpen = gestures.dwellGaze && gestures.mouthOpen;
 
     return gestures;
   }

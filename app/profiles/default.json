@@ -12,9 +12,9 @@
   },
   "thresholds": {
     "dwellTime": 1000,
-    "mouseSensitivity": 6,
-    "stabilityThreshold": 25,
-    "deadZonePercent": 0.03,
+    "mouseSensitivity": 2,
+    "stabilityThreshold": 50,
+    "deadZonePercent": 0.01,
     "blinkThreshold": 0.25,
     "eyebrowThreshold": 0.15,
     "mouthThreshold": 0.08,
@@ -31,7 +31,32 @@
   },
   "rules": [
     {
-      "gesture": "mouthOpen",
+      "gesture": "dwellPlusEyebrowRaise",
+      "action": "click",
+      "param": ""
+    },
+    {
+      "gesture": "dwellPlusMouthOpen",
+      "action": "right-click",
+      "param": ""
+    },
+    {
+      "gesture": "gazeExtremeRight",
+      "action": "undo",
+      "param": ""
+    },
+    {
+      "gesture": "mouthOpenSustained",
+      "action": "type",
+      "param": "Aura"
+    },
+    {
+      "gesture": "pauseCompound",
+      "action": "minimize-window",
+      "param": ""
+    },
+    {
+      "gesture": "smileLeft",
       "action": "click",
       "param": ""
     }

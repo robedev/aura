@@ -584,6 +584,41 @@ try {
     }
   }
 
+  document.getElementById('toggleAssistant').onclick = () => {
+    const container = document.getElementById('assistantButtons');
+    const icon = document.getElementById('assistantToggleIcon');
+    const isHidden = container.style.display === 'none';
+    
+    if (isHidden) {
+      container.style.display = 'grid';
+      icon.textContent = '▲';
+      // Auto-resize window if needed
+      if (window.outerHeight < 600) {
+        auraAPI.send('resize-window', 900, 800);
+      }
+    } else {
+      container.style.display = 'none';
+      icon.textContent = '▼';
+    }
+  };
+
+  document.getElementById('toggleApps').onclick = () => {
+    const container = document.getElementById('appsButtons');
+    const icon = document.getElementById('appsToggleIcon');
+    const isHidden = container.style.display === 'none';
+    
+    if (isHidden) {
+      container.style.display = 'grid';
+      icon.textContent = '▲';
+    } else {
+      container.style.display = 'none';
+      icon.textContent = '▼';
+    }
+  };
+  
+  document.getElementById('openBrowser').onclick = () => auraAPI.send('open-app', 'browser');
+  document.getElementById('openFiles').onclick = () => auraAPI.send('open-app', 'files');
+
   document.getElementById('calibrate').onclick = () => {
     console.log('🎯 Calibrate button clicked');
     auraAPI.send('calibrate');
@@ -735,10 +770,24 @@ try {
 
   // Gesture descriptions for better UI
   const gestureTranslations = {
-    'eyebrowRaise': 'Levantar ceja',
+    'dwellGaze': 'Mirada fija',
+    'eyebrowRaise': 'Levantar cejas',
+    'eyebrowRaiseLeft': 'Levantar ceja izq',
+    'eyebrowRaiseRight': 'Levantar ceja der',
     'mouthOpen': 'Abrir boca',
+    'mouthOpenSustained': 'Abrir boca (sostenido)',
     'headTiltLeft': 'Inclinar cabeza izq',
-    'headTiltRight': 'Inclinar cabeza der'
+    'headTiltRight': 'Inclinar cabeza der',
+    'headTiltLeftSustained': 'Inclinación izq (sostenida)',
+    'headTiltRightSustained': 'Inclinación der (sostenida)',
+    'smileLeft': 'Sonrisa leve izq',
+    'smileRight': 'Sonrisa leve der',
+    'dwellPlusEyebrowRaise': 'Mirada + Ceja',
+    'dwellPlusMouthOpen': 'Mirada + Boca',
+    'gazeUp': 'Mirar arriba',
+    'gazeExtremeLeft': 'Mirada extrema izq',
+    'gazeExtremeRight': 'Mirada extrema der',
+    'pauseCompound': 'Gesto pausa'
   };
 
   function updateRulesList(rules) {

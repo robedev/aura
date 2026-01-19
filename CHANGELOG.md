@@ -1,5 +1,35 @@
 # Aura - Registro de Cambios
 
+## [2.2.0] - 2026-01-19 - ESTABILIDAD, GESTOS AVANZADOS Y UX ✨
+
+Actualización enfocada en la ergonomía, robustez del sistema y experiencia de usuario.
+
+### 🧠 **SISTEMA DE GESTOS AVANZADOS**
+- ✅ **Guía de Ergonomía**: Nueva documentación (`GESTOS_RECOMENDADOS.md`) con clasificación por esfuerzo.
+- ✅ **Gestos Granulares**: Detección independiente de ceja izquierda/derecha, sonrisa asimétrica y mirada.
+- ✅ **Gestos Compuestos y Sostenidos**: Soporte para combinaciones (Mirada + Ceja) y estados mantenidos (Inclinación sostenida).
+- ✅ **Regla de Oro**: Implementación de la filosofía "Intención (continuo) + Confirmación (discreto)".
+
+### 🖥️ **MEJORAS DE INTERFAZ (UI)**
+- ✅ **Panel Asistente Oculto**: El panel "ASISTENTE" ahora aparece colapsado por defecto para una interfaz más limpia.
+- ✅ **Nuevo Panel "APLICACIONES"**: Sección dedicada para accesos directos a software del sistema.
+- ✅ **Integración de Archivos**: Nuevo botón para abrir el explorador de archivos nativo (Linux/Windows/macOS).
+- ✅ **Nuevas Traducciones**: Descripciones claras para los nuevos gestos en el editor de reglas.
+
+### 🖱️ **ESTABILIDAD DEL CURSOR (MOUSE)**
+- ✅ **Suavizado Adaptativo (WMA)**: Nuevo algoritmo de media móvil ponderada.
+  - *Lento*: Alta estabilidad para precisión (elimina temblores).
+  - *Rápido*: Baja latencia para movimiento ágil.
+- ✅ **Zona Muerta Dinámica**: Transición suave (ramping) para evitar saltos al iniciar el movimiento.
+- ✅ **Precisión Sub-píxel**: Acumulación de residuos para movimientos micro-finos.
+
+### 🛡️ **ROBUSTEZ Y SOLUCIONES CRÍTICAS**
+- ✅ **Fix Crítico de Teclado**: Solución definitiva al bloqueo de teclas al cerrar la app (especialmente modificadores).
+- ✅ **Fallback de Mouse Inteligente**: Sistema robusto que intenta `ydotool` (Wayland) y retrocede automáticamente a `xdotool` (X11/XWayland) si falla, garantizando el control del cursor.
+- ✅ **Limpieza Mejorada**: Asegura la liberación de recursos incluso en cierres inesperados.
+
+---
+
 ## [2.1.0] - 2026-01-18 - MEJORAS DE USABILIDAD Y PRECISIÓN ✨
 
 Esta actualización se centra en la **experiencia de usuario (UX)** y la **compatibilidad robusta**, resolviendo problemas críticos de movimiento en Linux/Wayland y mejorando significativamente la herramienta de comunicación.

@@ -287,8 +287,10 @@
     </div>
 
     <div class="panel">
-      <h3>ASISTENTE</h3>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+      <h3 id="toggleAssistant" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+        ASISTENTE <span id="assistantToggleIcon">▼</span>
+      </h3>
+      <div id="assistantButtons" style="display: none; grid-template-columns: 1fr 1fr; gap: 5px;">
         <button id="undo">Deshacer</button>
         <button id="toggleScan">Escaneo</button>
         <button id="volumeUp">Vol +</button>
@@ -302,16 +304,38 @@
         <button id="closeWindow">Cerrar</button>
       </div>
 
+      <h3 id="toggleApps" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+        APLICACIONES <span id="appsToggleIcon">▼</span>
+      </h3>
+      <div id="appsButtons" style="display: none; grid-template-columns: 1fr 1fr; gap: 5px;">
+        <button id="openBrowser">Internet</button>
+        <button id="openFiles">Archivos</button>
+      </div>
+
       <h3>REGLAS ACTIVAS</h3>
       <ul id="rulesList" style="list-style: none; padding: 0; max-height: 150px; overflow-y: auto;"></ul>
 
       <div id="ruleEditor">
         <select id="gestureSelect"
           style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
-          <option value="eyebrowRaise">Levantar ceja</option>
+          <option value="dwellGaze">Mirada fija (dwell)</option>
           <option value="mouthOpen">Abrir boca</option>
+          <option value="mouthOpenSustained">Abrir boca (sostenido)</option>
+          <option value="eyebrowRaise">Levantar cejas</option>
+          <option value="eyebrowRaiseLeft">Levantar ceja izq</option>
+          <option value="eyebrowRaiseRight">Levantar ceja der</option>
           <option value="headTiltLeft">Inclinar cabeza izq</option>
           <option value="headTiltRight">Inclinar cabeza der</option>
+          <option value="headTiltLeftSustained">Inclinación izq (sostenida)</option>
+          <option value="headTiltRightSustained">Inclinación der (sostenida)</option>
+          <option value="smileLeft">Sonrisa leve izq</option>
+          <option value="smileRight">Sonrisa leve der</option>
+          <option value="dwellPlusEyebrowRaise">Mirada fija + Ceja</option>
+          <option value="dwellPlusMouthOpen">Mirada fija + Boca</option>
+          <option value="gazeUp">Mirar arriba</option>
+          <option value="gazeExtremeLeft">Mirada extrema izq</option>
+          <option value="gazeExtremeRight">Mirada extrema der</option>
+          <option value="pauseCompound">Gesto pausa (compuesto)</option>
         </select>
         <select id="actionSelect"
           style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">

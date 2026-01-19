@@ -31,7 +31,7 @@ setTimeout(() => {
   console.log('📊 Analyzing gesture detection behavior...');
 
   // Check for unwanted gesture detections
-  const gestureMatches = outputBuffer.match(/Gesture Detected|RULE ENGINE|mouthOpen|blink|eyebrowRaise/gi) || [];
+  const gestureMatches = outputBuffer.match(/Gesture Detected|RULE ENGINE|mouthOpen|dwellGaze|smile|eyebrowRaise|gaze/gi) || [];
   const ruleTriggers = outputBuffer.match(/Triggered/g) || [];
 
   console.log(`Total gesture detections: ${gestureMatches.length}`);

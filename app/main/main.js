@@ -522,6 +522,9 @@ async function performGracefulShutdown(signal = 'unknown') {
       mainWindow.destroy();
     }
 
+    // Phase 1.5: Force key release (CRITICAL)
+    await osController.releaseAllKeys();
+
     // Phase 2: OS Controller cleanup (Aggressive)
     await osController.cleanup();
 

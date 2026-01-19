@@ -296,6 +296,8 @@ npm run test-cleanup  # Verifica que no queden procesos huérfanos
 
 ### 🎭 Gestos Soportados (7 tipos) - TOTALMENTE OPTIMIZADOS
 
+> **📘 Guía de Ergonomía:** Para ver la definición detallada de mejores prácticas y gestos recomendados, consulta [GESTOS_RECOMENDADOS.md](GESTOS_RECOMENDADOS.md).
+
 | Gesto | Acción | Precisión | Estado |
 |-------|--------|-----------|---------|
 | **Movimiento de cabeza** | Cursor del mouse preciso | ✅ Calibrado individualmente | 🟢 Activo |

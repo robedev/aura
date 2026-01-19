@@ -238,19 +238,39 @@ class OSController {
     moveMouseRelative(dx, dy) {
         if (isNaN(dx) || isNaN(dy) || (dx === 0 && dy === 0)) return;
 
-        // Apply gain/sensitivity at OS level if needed (optional)
         const moveX = Math.round(dx);
         const moveY = Math.round(dy);
 
         switch (this.platform) {
             case 'linux':
-                if (this.isWayland || (this.hasYdotool && !this.hasXdotool)) {
-                    if (!this.canUseYdotool) return;
+                // Strategy: Try ydotool first if on Wayland/configured, otherwise fallback to xdotool
+                // This is more robust than strict branching
+                let usedYdotool = false;
+
+                if (this.canUseYdotool) {
                     const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
-                    // ydotool mousemove (without -a is relative)
-                    this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool mousemove -x ${moveX} -y ${moveY}`);
-                } else {
-                    this.executeCommand(`xdotool mousemove_relative -- ${moveX} ${moveY}`);
+                    // Check if socket exists before trying (dynamic check)
+                    if (fs.existsSync(socketPath)) {
+                        this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool mousemove -x ${moveX} -y ${moveY}`);
+                        usedYdotool = true;
+                    } else {
+                        // Lost socket access?
+                        this.canUseYdotool = false; 
+                    }
+                }
+
+                if (!usedYdotool) {
+                    // Fallback to xdotool, works in XWayland sometimes
+                    this.executeCommand(`xdotool mousemove_relative -- ${moveX} ${moveY}`, (code) => {
+                        if (code !== 0) {
+                             // Throttle error logging
+                             const now = Date.now();
+                             if (!this.lastErrorLog || now - this.lastErrorLog > 5000) {
+                                 console.warn('⚠️ Mouse move failed. Wayland detected? ensure "sudo ydotoold" is running.');
+                                 this.lastErrorLog = now;
+                             }
+                        }
+                    });
                 }
                 break;
 
@@ -318,31 +338,22 @@ class OSController {
 
         switch (this.platform) {
             case 'linux':
-                // Use ydotool for Wayland, or if available and xdotool fails
-                if (this.isWayland || (this.hasYdotool && !this.hasXdotool)) {
-                    if (!this.canUseYdotool) return; // Prevent log spam if permissions are missing
+                let usedYdotool = false;
 
-                    // Use YDOTOOL_SOCKET env var to find the daemon socket
+                // Try ydotool first if available/configured
+                if (this.canUseYdotool) {
                     const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
-                    this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool mousemove -a -x ${coords.x} -y ${coords.y}`, (code) => {
-                        if (code !== 0) {
-                            console.error('OSController: ydotool mouse move error, exit code:', code);
-                            if (code === 1) {
-                                console.error('OSController: Make sure ydotoold daemon is running: sudo ydotoold &');
-                            }
-                        }
-                    });
-                } else {
-                    // Use xdotool for X11
+                     if (fs.existsSync(socketPath)) {
+                        this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool mousemove -a -x ${coords.x} -y ${coords.y}`);
+                        usedYdotool = true;
+                     }
+                } 
+                
+                if (!usedYdotool) {
+                    // Fallback to xdotool (works on X11 and some XWayland setups)
                     this.executeCommand(`xdotool mousemove ${coords.x} ${coords.y}`, (code) => {
                         if (code !== 0) {
-                            console.error('OSController: xdotool mouse move error, exit code:', code);
-                            // Try ydotool as fallback if available
-                            if (this.hasYdotool) {
-                                console.log('OSController: Trying ydotool as fallback...');
-                                const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
-                                this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool mousemove -a -x ${coords.x} -y ${coords.y}`);
-                            }
+                            // Only log sparingly
                         }
                     });
                 }
@@ -664,19 +675,22 @@ class OSController {
                 'notepad': 'kate',
                 'terminal': 'gnome-terminal',
                 'browser': 'firefox',
-                'calculator': 'gnome-calculator'
+                'calculator': 'gnome-calculator',
+                'files': 'xdg-open .'
             },
             win32: {
                 'notepad': 'notepad.exe',
                 'terminal': 'cmd.exe',
                 'browser': 'start chrome',
-                'calculator': 'calc.exe'
+                'calculator': 'calc.exe',
+                'files': 'explorer .'
             },
             darwin: {
                 'notepad': 'open -a TextEdit',
                 'terminal': 'open -a Terminal',
                 'browser': 'open -a Safari',
-                'calculator': 'open -a Calculator'
+                'calculator': 'open -a Calculator',
+                'files': 'open .'
             }
         };
 
@@ -895,36 +909,41 @@ class OSController {
             try {
                 console.log('🔓 Releasing all keyboard keys...');
 
-                // CRITICAL: Kill any existing xdotool processes FIRST to prevent conflicts
-                console.log('🔪 Killing any existing xdotool processes...');
-                await this.executeCommandAsync('pkill -9 xdotool || true');
-
-                // Wait a moment for processes to die
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // Release keys in smaller batches to prevent hanging
-                // Batch 1: Modifiers (most critical)
-                const modifiers = 'Meta_L Meta_R Alt_L Alt_R Control_L Control_R Shift_L Shift_R Caps_Lock';
+                // CRITICAL: The issue where keyboard stops working is usually due to stuck modifier keys
+                // We use --clearmodifiers AND explicitly release common modifiers
+                
+                // 1. First attempt: Standard cleanup
+                await this.executeCommandAsync('xdotool keyup --clearmodifiers " " 2>/dev/null || true');
+                
+                // 2. Explicitly release critical modifiers that cause "locked" keyboard feel
+                const modifiers = 'Meta_L Meta_R Alt_L Alt_R Control_L Control_R Shift_L Shift_R Caps_Lock Super_L Super_R';
                 await this.executeCommandAsync(`xdotool keyup ${modifiers} 2>/dev/null || true`);
 
-                // Batch 2: Common letters (including 'c' which was the problem)
-                const commonLetters = 'a b c d e f g h i j k l m n o p q r s t u v w x y z';
-                await this.executeCommandAsync(`xdotool keyup ${commonLetters} 2>/dev/null || true`);
-
-                // Batch 3: Numbers and special keys
-                const numbersAndSpecials = '0 1 2 3 4 5 6 7 8 9 space Return BackSpace Tab Escape';
-                await this.executeCommandAsync(`xdotool keyup ${numbersAndSpecials} 2>/dev/null || true`);
-
-                console.log('✅ All keyboard keys released');
+                console.log('✅ Critical modifier keys released');
             } catch (error) {
                 console.error('⚠️ Error releasing keys:', error.message);
-                // Don't throw - we want cleanup to continue
             } finally {
-                // Final safety: kill any xdotool processes that might have spawned
+                // Final safety: kill any xdotool processes
                 try {
                     await this.executeCommandAsync('pkill -9 xdotool || true');
                 } catch (e) {
                     // Ignore
+                }
+            }
+
+            // Wayland / Ydotool Cleanup
+            if (this.canUseYdotool || this.hasYdotool) {
+                try {
+                    console.log('🔓 Releasing keys via ydotool (Wayland/Fallback)...');
+                    const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
+                    // Release critical modifiers: 
+                    // 42(LShift), 54(RShift), 29(LCtrl), 97(RCtrl), 56(LAlt), 100(RAlt), 125(LMeta)
+                    // Syntax: key code:0 (0 = up)
+                    const cmd = `YDOTOOL_SOCKET=${socketPath} ydotool key 42:0 54:0 29:0 97:0 56:0 100:0 125:0`;
+                    await this.executeCommandAsync(cmd);
+                    console.log('✅ ydotool keys released');
+                } catch (error) {
+                    console.warn('⚠️ Error releasing ydotool keys:', error.message);
                 }
             }
         } else if (this.platform === 'win32') {
