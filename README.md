@@ -58,16 +58,21 @@ La aplicación utiliza visión por computador con **MediaPipe** para detectar la
 - **Interfaz profesional**: Configuración intuitiva sin conocimientos técnicos
 
 ### 🖱️ Control del Mouse Profesional
-- **Movimiento preciso**: Basado en posición de cabeza con filtros avanzados
-- **Zona muerta inteligente**: Configurable para evitar movimientos accidentales
-- **Clicks múltiples**: Izquierdo, derecho, central, doble-click
+- **Movimiento Relativo (Nuevo)**: Control fluido basado en deltas, eliminando problemas de límites de pantalla.
+- **Cursor de Alta Visibilidad**: Aumento automático del tamaño (100%) al usar la app.
+- **Movimiento preciso**: Basado en posición de cabeza con filtros avanzados.
+- **Zona muerta inteligente**: Configurable para evitar movimientos accidentales.
+- **Clicks múltiples**: Izquierdo, derecho, central, doble-click.
 - **Scroll fluido**: Arriba/abajo con control preciso
 - **Drag & drop**: Arrastrar y soltar objetos
 - **Filtros anti-fatiga**: Suavizado exponencial personalizado
 
-### ⌨️ Teclado Virtual y Atajos Avanzados
-- **Escritura directa**: Texto personalizado con gestos
-- **Escaneo inteligente**: Eye-typing con predicción
+### ⌨️ Teclado Virtual Inteligente v2
+- **Botón Dedicado**: Control de visibilidad "Teclado" en la interfaz principal.
+- **Frases Rápidas**: Modo especial con frases comunes para comunicación veloz.
+- **Predicción IA**: Aprende frases y palabras frecuentes automáticamente.
+- **Escritura directa**: Texto personalizado con gestos.
+- **Escaneo inteligente**: Eye-typing con predicción.
 - **Atajos del sistema**: Ctrl+C/V/X/A, Ctrl+Z, etc.
 - **Macros personalizables**: Secuencias complejas de comandos
 - **Interfaz accesible**: Alto contraste y tamaños configurables
@@ -269,20 +274,20 @@ npm run test-cleanup  # Verifica que no queden procesos huérfanos
 
 ### Inicio Rápido
 
-1. **Calibración Inicial**:
-   - Haz clic en "Calibrar Posición Neutra"
-   - Mantén la cabeza en posición neutra
-   - Espera confirmación
+1. **Calibración Inicial (Solo primera vez)**:
+   - Haz clic en "Calibrar Posición Neutra" (o espera la auto-calibración).
+   - Mantén la cabeza en posición neutra.
+   - **Nota**: Los datos se guardan, por lo que no necesitarás calibrar en cada inicio.
 
 2. **Control del Mouse**:
-   - Mueve la cabeza para mover el cursor
-   - Abre la boca para confirmar/hacer click
-   - Zona muerta central evita movimientos accidentales
+   - Mueve la cabeza para desplazar el cursor (ahora con movimiento relativo fluido).
+   - Abre la boca para confirmar/hacer click.
+   - El cursor se verá más grande para facilitar su seguimiento.
 
 3. **Teclado Virtual**:
-   - Activa modo escritura
-   - Usa escaneo o selección directa
-   - Abre la boca para seleccionar tecla
+   - Haz clic en el botón **"Teclado"** para mostrarlo.
+   - Usa el botón **"FRASES"** para comunicación rápida.
+   - Abre la boca para seleccionar tecla o frase.
 
 4. **Reglas Personalizadas**:
    - Abre editor de reglas

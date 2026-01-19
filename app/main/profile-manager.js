@@ -53,6 +53,13 @@ class ProfileManager {
         }
     }
 
+    updateCalibratedThresholds(thresholds) {
+        if (this.currentProfile) {
+            this.currentProfile.calibration.calibratedThresholds = thresholds;
+            this.save();
+        }
+    }
+
     addRule(rule) {
         if (this.currentProfile) {
             this.currentProfile.rules.push(rule);
@@ -79,8 +86,9 @@ class ProfileManager {
             },
             thresholds: {
                 dwellTime: 1000,           // ms para preselección
+                mouseSensitivity: 3.0,     // sensibilidad del mouse
                 stabilityThreshold: 10,    // pixels para estabilidad
-                deadZonePercent: 0.1,      // porcentaje zona muerta
+                deadZonePercent: 0.03,     // porcentaje zona muerta (reducido)
                 blinkThreshold: 0.25,      // umbral parpadeo (más alto para evitar falsos positivos)
                 eyebrowThreshold: 0.15,    // umbral cejas (más alto para evitar falsos positivos)
                 mouthThreshold: 0.08,      // umbral boca (más alto para evitar falsos positivos)

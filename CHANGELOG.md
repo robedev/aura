@@ -1,5 +1,34 @@
 # Aura - Registro de Cambios
 
+## [2.1.0] - 2026-01-18 - MEJORAS DE USABILIDAD Y PRECISIÓN ✨
+
+Esta actualización se centra en la **experiencia de usuario (UX)** y la **compatibilidad robusta**, resolviendo problemas críticos de movimiento en Linux/Wayland y mejorando significativamente la herramienta de comunicación.
+
+### ⌨️ **TECLADO VIRTUAL INTELIGENTE V2**
+- ✅ **Botón "Teclado" Dedicado**: Nuevo control en la interfaz para mostrar/ocultar el teclado a demanda.
+- ✅ **Modo "Frases Rápidas"**: Nuevo panel con frases comunes ("Hola", "Gracias", etc.) para comunicación veloz.
+- ✅ **Aprendizaje de Frases IA**: El sistema predictivo ahora aprende y sugiere frases completas usadas frecuentemente.
+- ✅ **Navegación Mejorada**: Botón "Volver" para alternar fluidamente entre escritura y frases.
+
+### 🖱️ **CONTROL DE MOUSE DE ALTA PRECISIÓN**
+- ✅ **Movimiento Relativo (Delta)**: Cambio de paradigma de coordenadas absolutas a relativas.
+  - *Impacto*: Elimina problemas de "cursor pegado" en esquinas.
+  - *Beneficio*: Movimiento más natural e intuitivo, independiente de la resolución de pantalla.
+- ✅ **Soporte Wayland Robusto**: Implementación específica para `ydotool` sin coordenadas absolutas.
+- ✅ **Filtrado Suavizado de Deltas**: Nuevo algoritmo para evitar movimientos bruscos del cursor.
+
+### 👁️ **ACCESIBILIDAD VISUAL**
+- ✅ **Cursor de Alta Visibilidad**: El tamaño del cursor aumenta automáticamente un **100%** al iniciar Aura.
+- ✅ **Restauración Automática**: El cursor vuelve a su tamaño original al cerrar la aplicación.
+- ✅ **Soporte Multi-Entorno**: Detección y soporte automático para **GNOME, KDE Plasma y Hyprland**.
+
+### 💾 **PERSISTENCIA Y CALIBRACIÓN**
+- ✅ **Memoria de Calibración**: Los datos de la calibración facial ahora se guardan en el perfil.
+- ✅ **Inicio Rápido**: Si ya existe una calibración válida, Aura inicia inmediatamente sin repetir el proceso de 3 segundos.
+- ✅ **Validación de Permisos**: Verificación proactiva de permisos de socket (`/tmp/.ydotool_socket`) con instrucciones claras de reparación.
+
+---
+
 ## [2.0.0] - 2025-01-15 - REVOLUCIÓN COMPLETA ✅
 
 ### 🎯 **TRANSFORMACIÓN TOTAL DEL PROYECTO**

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const RuleEngine = require('./rules-engine.js');
 const ProfileManager = require('./profile-manager.js');
@@ -97,7 +97,7 @@ let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
-    height: 700,
+    height: 800,
     alwaysOnTop: true,
     frame: true,
     webPreferences: {
@@ -153,7 +153,9 @@ function createWindow() {
 }
 
 // IPC handlers
+ipcMain.on('log', (event, message) => console.log(`[RENDERER] ${message}`));
 ipcMain.on('move-mouse', (event, x, y) => osController.moveMouse(x, y));
+ipcMain.on('move-mouse-relative', (event, dx, dy) => osController.moveMouseRelative(dx, dy));
 
 ipcMain.on('click-mouse', (event, button) => {
   osController.clickMouse(button);
@@ -312,6 +314,11 @@ ipcMain.on('calibrate-save', (event, pose) => {
   console.log('Calibration persisted');
 });
 
+ipcMain.on('save-calibrated-thresholds', (event, thresholds) => {
+  profileManager.updateCalibratedThresholds(thresholds);
+  console.log('Calibrated thresholds persisted');
+});
+
 // Settings management
 ipcMain.on('get-profile-settings', (event) => {
   event.sender.send('profile-settings-loaded', profileManager.currentProfile);
@@ -443,6 +450,54 @@ ipcMain.on('resize-window', (event, width, height) => {
   }
 });
 
+// Minimal mode - small camera-only window positioned top-right
+let isMinimalMode = false;
+let previousBounds = null;
+
+ipcMain.on('toggle-minimal-mode', (event) => {
+  if (!mainWindow) return;
+  
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
+  
+  if (!isMinimalMode) {
+    // Save current bounds before switching to minimal mode
+    previousBounds = mainWindow.getBounds();
+    
+    // Minimal mode: small window top-right
+    const minimalWidth = 280;
+    const minimalHeight = 200;
+    const margin = 20;
+    
+    mainWindow.setSize(minimalWidth, minimalHeight);
+    mainWindow.setPosition(screenWidth - minimalWidth - margin, margin);
+    mainWindow.setResizable(false);
+    mainWindow.setAlwaysOnTop(true, 'floating'); // Ensure always on top
+    
+    isMinimalMode = true;
+    event.sender.send('minimal-mode-changed', true);
+    console.log('🔲 Switched to minimal mode');
+  } else {
+    // Restore previous bounds
+    if (previousBounds) {
+      mainWindow.setBounds(previousBounds);
+    } else {
+      mainWindow.setSize(900, 800);
+      mainWindow.center();
+    }
+    mainWindow.setResizable(true);
+    mainWindow.setAlwaysOnTop(true); // Keep always on top but normal level
+    
+    isMinimalMode = false;
+    event.sender.send('minimal-mode-changed', false);
+    console.log('🔳 Switched to full mode');
+  }
+});
+
+ipcMain.on('get-minimal-mode', (event) => {
+  event.sender.send('minimal-mode-changed', isMinimalMode);
+});
+
 // Advanced keyboard shortcuts
 ipcMain.on('copy', () => osController.copy());
 ipcMain.on('paste', () => osController.paste());
@@ -456,45 +511,25 @@ ipcMain.on('close-tab', () => osController.closeTab());
 let isShuttingDown = false;
 
 async function performGracefulShutdown(signal = 'unknown') {
-  if (isShuttingDown) {
-    console.log('⚠️ Shutdown already in progress, forcing exit...');
-    process.exit(1);
-  }
-
+  if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`🛑 ${signal} received, starting comprehensive cleanup...`);
+
+  console.log(`🛑 ${signal} received, starting cleanup...`);
 
   try {
-    // Phase 1: Stop accepting new IPC messages
-    console.log('📋 Phase 1: Disabling IPC communication');
-    // Note: Electron automatically handles IPC cleanup
-
-    // Phase 2: Cleanup main window
-    console.log('📋 Phase 2: Cleaning up main window');
+    // Phase 1: Close Windows
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // Send cleanup signal to renderer process
-      mainWindow.webContents.send('application-closing');
-      await new Promise(resolve => setTimeout(resolve, 200));
+      mainWindow.destroy();
     }
 
-    // Phase 3: Comprehensive OS Controller cleanup
-    console.log('📋 Phase 3: OS Controller cleanup');
+    // Phase 2: OS Controller cleanup (Aggressive)
     await osController.cleanup();
 
-    // Phase 4: Final cleanup verification
-    console.log('📋 Phase 4: Final cleanup verification');
-    await performFinalCleanupCheck();
-
-    console.log('✅ Comprehensive cleanup completed successfully');
-
   } catch (error) {
-    console.error('❌ Error during graceful shutdown:', error);
+    console.error('❌ Error during shutdown:', error);
   } finally {
-    // Force exit after maximum cleanup time
-    setTimeout(() => {
-      console.log('💀 Forcing application exit...');
-      process.exit(0);
-    }, 3000);
+    console.log('🏁 Shutdown complete');
+    process.exit(0);
   }
 }
 
@@ -502,50 +537,26 @@ process.on('SIGINT', () => performGracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => performGracefulShutdown('SIGTERM'));
 
 // Handle unexpected exits
-process.on('exit', (code) => {
-  console.log('📴 Process exit with code:', code);
-});
-
-process.on('SIGTERM', () => {
-  console.log('📴 Received SIGTERM signal');
-});
-
-process.on('SIGINT', () => {
-  console.log('📴 Received SIGINT signal');
-});
 process.on('uncaughtException', (error) => {
   console.error('💥 Uncaught Exception:', error);
   performGracefulShutdown('uncaughtException');
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('💥 Unhandled Rejection:', reason);
   performGracefulShutdown('unhandledRejection');
 });
 
 app.whenReady().then(() => {
   console.log('✅ app.whenReady() resolved');
   createWindow();
+  
+  // Increase cursor size for accessibility
+  osController.setLargeCursor(true);
 });
 
-app.on('window-all-closed', async () => {
-  console.log('🧹 window-all-closed event fired');
-  console.log('🧹 Application window closed, performing final cleanup...');
-
-  // Wait for any pending operations
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  // Perform comprehensive cleanup
-  await performGracefulShutdown('window-all-closed');
-
-  // Only quit on non-macOS platforms
-  if (process.platform !== 'darwin') {
-    setTimeout(() => {
-      console.log('🏁 Application shutdown complete');
-      app.quit();
-    }, 1000);
-  }
+app.on('window-all-closed', () => {
+  performGracefulShutdown('window-all-closed');
 });
 
 async function performFinalCleanupCheck() {

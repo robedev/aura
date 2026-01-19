@@ -25,11 +25,14 @@ class FaceTracker {
       throw error;
     }
 
+    // IPC listeners will be initialized when start() is called
+    this.ipcInitialized = false;
+
     // Load thresholds from profile or use defaults
     this.thresholds = {
       dwellTime: thresholds.dwellTime || 1000,
       stabilityThreshold: thresholds.stabilityThreshold || 10,
-      deadZonePercent: thresholds.deadZonePercent || 0.1,
+      deadZonePercent: thresholds.deadZonePercent || 0.03, // Reduced from 0.1 to allow more movement
       blinkThreshold: thresholds.blinkThreshold || 0.30,
       eyebrowThreshold: thresholds.eyebrowThreshold || 0.20,
       mouthThreshold: thresholds.mouthThreshold || 0.15,
@@ -46,8 +49,8 @@ class FaceTracker {
     this.stableStart = null;
     this.filteredX = null;
     this.filteredY = null;
-    this.alpha = 0.2; // Exponential filter alpha
-    this.adaptiveSensitivity = 1.0; // Adaptive factor
+    this.alpha = 0.4; // Exponential filter alpha (increased for faster response)
+    this.adaptiveSensitivity = 3.0; // Adaptive factor (increased for more noticeable movement)
     this.emergencyStart = null;
 
     this.neutralPose = null; // Store neutral pose for calibration
@@ -83,6 +86,12 @@ class FaceTracker {
 
   start(videoElement) {
     console.log('Starting FaceTracker camera...');
+
+    // Initialize IPC listeners on start (when auraAPI is guaranteed to exist)
+    if (!this.ipcInitialized) {
+      this.initIPCListeners();
+      this.ipcInitialized = true;
+    }
 
     try {
       this.camera = new Camera(videoElement, {
@@ -123,8 +132,13 @@ class FaceTracker {
     }
   }
 
-  onResults(results) {
+  // Initialize IPC listeners - called once from constructor
+  initIPCListeners() {
     const ipc = window.auraAPI;
+    if (!ipc) {
+      console.warn('auraAPI not available yet, IPC listeners not initialized');
+      return;
+    }
 
     // Handle calibration request from renderer
     ipc.on('start-calibration', () => {
@@ -138,9 +152,16 @@ class FaceTracker {
         this.neutralPose = profile.calibration.neutralPose;
         console.log('FaceTracker: Initial calibration loaded');
       }
+      
+      // Load calibrated thresholds if available
+      if (profile.calibration && profile.calibration.calibratedThresholds) {
+        this.calibrationData.calibratedThresholds = profile.calibration.calibratedThresholds;
+        console.log('FaceTracker: Saved calibrated thresholds loaded');
+      }
+
       // Update thresholds if profile has new settings
       if (profile.thresholds) {
-        this.thresholds = profile.thresholds;
+        this.thresholds = { ...this.thresholds, ...profile.thresholds };
         this.resetSession(); // Reset adaptive learning for new session
 
         // Load historical adaptation data
@@ -150,6 +171,10 @@ class FaceTracker {
       }
     });
 
+    console.log('✅ FaceTracker IPC listeners initialized');
+  }
+
+  onResults(results) {
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
       // No face, go to inactive
       this.setState('inactive');
@@ -157,7 +182,7 @@ class FaceTracker {
     }
 
     const landmarks = results.multiFaceLandmarks[0];
-    console.log('Face detected, state:', this.state);
+    // console.log('👤 Face detected, current state:', this.state);
 
     // Automatic calibration during first few seconds (if enabled)
     if (!this.calibrationData.calibratedThresholds && !this.calibrating && this.thresholds.adaptive?.autoCalibration) {
@@ -187,11 +212,13 @@ class FaceTracker {
     switch (this.state) {
       case 'inactive':
         if (gestures.faceDetected) {
+          console.log('🔄 Transitioning from inactive to observing');
           this.setState('observing');
         }
         break;
       case 'observing':
         // Calculate head position for mouse control only in observing
+        // console.log('🖱️  In observing state - calculating mouse position');
         const nose = landmarks[1];
         const screenWidth = window.screen.width;
         const screenHeight = window.screen.height;
@@ -199,44 +226,79 @@ class FaceTracker {
         const centerY = screenHeight / 2;
 
         // Calibration logic
-        if (this.calibrating) {
+        if (this.calibrating || !this.neutralPose) {
           this.neutralPose = { x: nose.x, y: nose.y };
-          this.calibrating = false;
-          console.log('FaceTracker: Calibrated at', this.neutralPose);
-          ipc.send('calibrate-save', this.neutralPose);
+          if (this.calibrating) {
+             this.calibrating = false;
+             console.log('FaceTracker: Calibrated at', this.neutralPose);
+             ipc.send('calibrate-save', this.neutralPose);
+          }
         }
 
         const refX = this.neutralPose ? this.neutralPose.x : 0.5;
         const refY = this.neutralPose ? this.neutralPose.y : 0.5;
 
-        // Movement relative to neutral pose
-        let x = centerX + (nose.x - refX) * screenWidth * this.adaptiveSensitivity;
-        let y = centerY + (nose.y - refY) * screenHeight * this.adaptiveSensitivity;
+        // Calculate raw position (0.0 to 1.0) relative to neutral pose
+        // Inverted X for mirror effect
+        const rawX = refX - (nose.x - refX); 
+        const rawY = nose.y - refY;
 
-        // Apply dead zone
-        const currentThresholds = this.getCurrentThresholds();
-        const deadZoneX = screenWidth * currentThresholds.deadZonePercent;
-        const deadZoneY = screenHeight * currentThresholds.deadZonePercent;
-
-        if (Math.abs(x - centerX) < deadZoneX / 2 && Math.abs(y - centerY) < deadZoneY / 2) {
-          x = centerX;
-          y = centerY;
+        // Calculate DELTA from last frame's raw position
+        if (!this.lastRawPos) {
+            this.lastRawPos = { x: rawX, y: rawY };
+            return; // Skip first frame
         }
 
-        // Apply exponential filter
-        if (this.filteredX === null) {
-          this.filteredX = x;
-          this.filteredY = y;
+        const deltaXRaw = rawX - this.lastRawPos.x;
+        const deltaYRaw = rawY - this.lastRawPos.y;
+        
+        // Update last pos
+        this.lastRawPos = { x: rawX, y: rawY };
+
+        // Apply sensitivity and screen scale to delta
+        // Sensitivity: 3.0 means reasonable speed. 
+        // Screen scale: 1920x1080 typical.
+        // We use a multiplier to convert normalized delta (e.g. 0.001) to pixels
+        const speedMultiplier = 3000 * (this.adaptiveSensitivity || 1.0); 
+        
+        let dx = deltaXRaw * speedMultiplier;
+        let dy = deltaYRaw * speedMultiplier;
+
+        // Apply Dead Zone to DELTA (ignore very small movements)
+        const deadZone = this.getCurrentThresholds().deadZonePercent * 10; // Simple threshold
+        if (Math.abs(dx) < deadZone) dx = 0;
+        if (Math.abs(dy) < deadZone) dy = 0;
+
+        // Apply smoothing to DELTA
+        if (!this.filteredDelta) {
+            this.filteredDelta = { x: dx, y: dy };
         } else {
-          this.filteredX = this.alpha * x + (1 - this.alpha) * this.filteredX;
-          this.filteredY = this.alpha * y + (1 - this.alpha) * this.filteredY;
+            const alpha = 0.5; // Smoothing factor
+            this.filteredDelta.x = alpha * dx + (1 - alpha) * this.filteredDelta.x;
+            this.filteredDelta.y = alpha * dy + (1 - alpha) * this.filteredDelta.y;
         }
+        
+        const moveX = Math.round(this.filteredDelta.x);
+        const moveY = Math.round(this.filteredDelta.y);
 
-        const filteredX = Math.round(this.filteredX);
-        const filteredY = Math.round(this.filteredY);
-        window.auraAPI.send('move-mouse', filteredX, filteredY);
+        if (moveX !== 0 || moveY !== 0) {
+             // Throttle IPC
+             const now = Date.now();
+             if (!this.lastMoveTime || now - this.lastMoveTime > 15) {
+                 window.auraAPI.send('move-mouse-relative', moveX, moveY);
+                 this.lastMoveTime = now;
+             }
+        }
+        
+        // Check dwell (Legacy logic kept but unused for movement)
+        /*
+        if (this.lastMousePos) { ... }
+        */
 
-        // Check dwell for preselection
+        // Alternative: mouth gesture to preselection (ONLY way to enter preselection now)
+        // The dwell time was causing the system to enter preselection state too quickly,
+        // preventing continuous mouse movement. Users can still enter preselection by opening mouth.
+        /*
         if (this.lastMousePos) {
           const distance = Math.sqrt((filteredX - this.lastMousePos.x) ** 2 + (filteredY - this.lastMousePos.y) ** 2);
           if (distance < currentThresholds.stabilityThreshold) {
@@ -250,8 +312,9 @@ class FaceTracker {
           }
         }
         this.lastMousePos = { x: filteredX, y: filteredY };
+        */
 
-        // Alternative: mouth gesture to preselection
+        // Alternative: mouth gesture to preselection (ONLY way to enter preselection now)
         if (gestures.mouthOpen) {
           this.setState('preselection');
         }
@@ -542,6 +605,11 @@ class FaceTracker {
     // Update base thresholds
     this.thresholds = { ...this.thresholds, ...newThresholds };
 
+    // Update sensitivity if provided
+    if (newThresholds.mouseSensitivity !== undefined) {
+      this.adaptiveSensitivity = newThresholds.mouseSensitivity;
+    }
+
     // Reset adaptive thresholds to match new base thresholds
     this.adaptiveThresholds = {
       dwellTime: this.thresholds.dwellTime,
@@ -550,6 +618,12 @@ class FaceTracker {
     };
 
     console.log('FaceTracker thresholds updated:', this.thresholds);
+  }
+
+  // Update mouse sensitivity in real-time
+  updateSensitivity(sensitivity) {
+    this.adaptiveSensitivity = sensitivity;
+    console.log('Mouse sensitivity updated to:', sensitivity);
   }
 
   performAutomaticCalibration(landmarks) {
@@ -627,6 +701,8 @@ class FaceTracker {
     // Notify UI about calibration completion
     if (window.auraAPI) {
       window.auraAPI.send('calibration-status', { completed: true });
+      // Persist calibrated thresholds
+      window.auraAPI.send('save-calibrated-thresholds', this.calibrationData.calibratedThresholds);
     }
   }
 

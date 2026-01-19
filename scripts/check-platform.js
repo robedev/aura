@@ -15,7 +15,8 @@ console.log('='.repeat(50));
 
 const checks = {
   linux: {
-    'xdotool': 'xdotool --version',
+    'xdotool (X11)': 'xdotool --version',
+    'ydotool (Wayland)': 'which ydotool',
     'espeak/festival': 'which espeak || which festival'
   },
   win32: {
@@ -38,9 +39,39 @@ if (checks[platform]) {
       execSync(command, { stdio: 'pipe' });
       console.log(`✅ ${dep}: OK`);
     } catch (error) {
-      console.log(`❌ ${dep}: FALTANTE o NO FUNCIONA`);
-      allGood = false;
+      // Don't fail immediately for xdotool/ydotool as one might replace the other
+      if (dep.includes('xdotool') || dep.includes('ydotool')) {
+         console.log(`ℹ️  ${dep}: NO ENCONTRADO (Podría ser opcional según tu entorno)`);
+      } else {
+         console.log(`❌ ${dep}: FALTANTE o NO FUNCIONA`);
+         allGood = false;
+      }
     }
+  }
+
+  // Linux specific socket check
+  if (platform === 'linux') {
+      try {
+          const fs = require('fs');
+          const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
+          if (fs.existsSync(socketPath)) {
+              try {
+                  fs.accessSync(socketPath, fs.constants.W_OK);
+                   console.log(`✅ ydotool socket (${socketPath}): OK (Escritura permitida)`);
+              } catch (e) {
+                   console.log(`❌ ydotool socket (${socketPath}): ERROR PERMISOS`);
+                   console.log(`   👉 EJECUTA: sudo chmod 666 ${socketPath}`);
+                   // Critical for Wayland
+                   if (!process.env.XDG_SESSION_TYPE || process.env.XDG_SESSION_TYPE === 'wayland') {
+                       allGood = false;
+                   }
+              }
+          } else {
+               console.log(`ℹ️  ydotool socket (${socketPath}): No encontrado (Asegúrate de ejecutar 'sudo ydotoold &')`);
+          }
+      } catch (e) {
+          console.log('Error verificando socket:', e.message);
+      }
   }
 } else {
   console.log(`❌ Plataforma ${platform} no soportada`);

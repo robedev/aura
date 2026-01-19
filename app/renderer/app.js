@@ -100,8 +100,8 @@ try {
     }
 
     // Phase 5: Final verification
-    console.log('📋 Phase 5: Final verification');
-    console.log('✅ Comprehensive Aura cleanup completed');
+    console.log('Phase 5: Final verification');
+    console.log('Comprehensive Aura cleanup completed');
   };
 
   // Check if auraAPI is available
@@ -234,13 +234,21 @@ try {
     scanInterval: null
   };
 
+  // Frases comunes para comunicación rápida
+  const QUICK_PHRASES = [
+    'Hola', 'Gracias', 'Por favor', 'Sí', 'No',
+    'Ayuda', 'Bien', 'Mal', '¿Cómo estás?', 'Adiós',
+    'Tengo sed', 'Tengo hambre', 'Baño', 'Dolor', 'Llama a'
+  ];
+  let isPhraseMode = false;
+
   // Keyboard Layout: Optimized for frequency (not strictly QWERTY) but familiar
   const KEYBOARD_LAYOUT = [
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ñ'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', 'SPACE'],
-    ['ENTER', 'BACKSPACE', 'CLEAR', 'SPEAK']
+    ['ENTER', 'BACKSPACE', 'CLEAR', 'SPEAK', 'FRASES']
   ];
 
   window.onload = async () => {
@@ -311,50 +319,92 @@ try {
     const predictBar = document.createElement('div');
     predictBar.className = 'prediction-bar';
     predictBar.id = 'predictionBar';
-    updatePredictionsUI([]); // Init empty
+    updatePredictionsUI(smartKeyboardState.suggestions || []); 
     container.appendChild(predictBar);
 
     // 2. Current Input Display
     const inputDisplay = document.createElement('div');
     inputDisplay.className = 'current-input-display';
     inputDisplay.id = 'inputDisplay';
-    inputDisplay.textContent = '...';
+    inputDisplay.textContent = smartKeyboardState.currentInput || '...';
     container.appendChild(inputDisplay);
 
-    // 3. Keyboard Grid
+    // 3. Keyboard Grid or Phrase Grid
     const grid = document.createElement('div');
     grid.className = 'keyboard-grid';
     grid.id = 'keyboardGrid';
 
-    KEYBOARD_LAYOUT.forEach((rowKeys, rowIndex) => {
-      const rowDiv = document.createElement('div');
-      rowDiv.className = 'keyboard-row';
-      rowDiv.id = `row-${rowIndex}`;
+    if (isPhraseMode) {
+      // Render phrases grid
+      // Split phrases into rows of 3 for better visibility
+      const rows = [];
+      for (let i = 0; i < QUICK_PHRASES.length; i += 3) {
+        rows.push(QUICK_PHRASES.slice(i, i + 3));
+      }
+      // Add back button row
+      rows.push(['VOLVER']);
 
-      rowKeys.forEach((key, keyIndex) => {
-        const btn = document.createElement('button');
-        btn.className = 'key-btn';
-        btn.textContent = key === 'SPACE' ? '␣' : key;
-        btn.dataset.key = key;
+      rows.forEach((rowPhrases, rowIndex) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'keyboard-row';
+        rowDiv.id = `row-${rowIndex}`;
 
-        // Special styling
-        if (['ENTER', 'BACKSPACE', 'CLEAR', 'SPEAK'].includes(key)) btn.classList.add('action');
-        if (key === 'SPACE') btn.classList.add('key-space');
-        if (key === 'BACKSPACE') {
-          btn.classList.add('key-backspace');
-          btn.innerHTML = '⌫';
-        }
-        if (key === 'ENTER') {
-          btn.classList.add('key-enter');
-          btn.innerHTML = '↵';
-        }
-
-        btn.onclick = () => handleKeyPress(key);
-        rowDiv.appendChild(btn);
+        rowPhrases.forEach((phrase, pIndex) => {
+          const btn = document.createElement('button');
+          btn.className = 'key-btn';
+          btn.textContent = phrase;
+          btn.style.flex = '1'; // Expand to fill
+          
+          if (phrase === 'VOLVER') {
+             btn.classList.add('action');
+             btn.onclick = () => {
+               isPhraseMode = false;
+               renderSmartKeyboard();
+             };
+          } else {
+             btn.onclick = () => {
+               smartKeyboardState.currentInput += phrase + ' ';
+               document.getElementById('inputDisplay').textContent = smartKeyboardState.currentInput;
+               predictor.learn(phrase);
+             };
+          }
+          rowDiv.appendChild(btn);
+        });
+        grid.appendChild(rowDiv);
       });
 
-      grid.appendChild(rowDiv);
-    });
+    } else {
+      // Render standard keyboard
+      KEYBOARD_LAYOUT.forEach((rowKeys, rowIndex) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'keyboard-row';
+        rowDiv.id = `row-${rowIndex}`;
+
+        rowKeys.forEach((key, keyIndex) => {
+          const btn = document.createElement('button');
+          btn.className = 'key-btn';
+          btn.textContent = key === 'SPACE' ? '␣' : key;
+          btn.dataset.key = key;
+
+          // Special styling
+          if (['ENTER', 'BACKSPACE', 'CLEAR', 'SPEAK', 'FRASES'].includes(key)) btn.classList.add('action');
+          if (key === 'SPACE') btn.classList.add('key-space');
+          if (key === 'BACKSPACE') {
+            btn.classList.add('key-backspace');
+            btn.innerHTML = '⌫';
+          }
+          if (key === 'ENTER') {
+            btn.classList.add('key-enter');
+            btn.innerHTML = '↵';
+          }
+
+          btn.onclick = () => handleKeyPress(key);
+          rowDiv.appendChild(btn);
+        });
+
+        grid.appendChild(rowDiv);
+      });
+    }
 
     container.appendChild(grid);
   }
@@ -390,7 +440,11 @@ try {
       auraAPI.send('type-text', smartKeyboardState.currentInput);
       smartKeyboardState.currentInput = '';
     } else if (key === 'SPEAK') {
-      auraAPI.send('speak-text', smartKeyboardState.currentInput); // New feature possibility
+      auraAPI.send('speak-text', smartKeyboardState.currentInput); 
+    } else if (key === 'FRASES') {
+      isPhraseMode = true;
+      renderSmartKeyboard();
+      return; // Stop processing
     } else {
       smartKeyboardState.currentInput += key.toLowerCase();
     }
@@ -595,6 +649,42 @@ try {
   document.getElementById('minimize').onclick = () => auraAPI.send('minimize-window');
   document.getElementById('closeWindow').onclick = () => auraAPI.send('close-window');
 
+  // Minimal mode toggle
+  let isMinimalMode = false;
+
+  document.getElementById('minimalMode').onclick = () => {
+    console.log('🔲 Minimal mode button clicked');
+    auraAPI.send('toggle-minimal-mode');
+  };
+
+  document.getElementById('exitMinimalMode').onclick = () => {
+    console.log('🔳 Exit minimal mode clicked');
+    auraAPI.send('toggle-minimal-mode');
+  };
+
+  // Listen for minimal mode changes
+  auraAPI.on('minimal-mode-changed', (event, minimal) => {
+    isMinimalMode = minimal;
+    const minimalBtn = document.getElementById('minimalMode');
+    
+    if (minimal) {
+      document.body.classList.add('minimal-mode');
+      minimalBtn.textContent = '🔳';
+      minimalBtn.title = 'Modo completo';
+      console.log('✅ Minimal mode activated');
+    } else {
+      document.body.classList.remove('minimal-mode');
+      minimalBtn.textContent = '🔲';
+      minimalBtn.title = 'Modo minimalista - Solo cámara';
+      console.log('✅ Full mode activated');
+    }
+  });
+
+  // Double-click on video to toggle minimal mode
+  document.getElementById('video').addEventListener('dblclick', () => {
+    auraAPI.send('toggle-minimal-mode');
+  });
+
   // Handle action select change to show/hide text input
   document.getElementById('actionSelect').onchange = (e) => {
     const textInput = document.getElementById('actionParam');
@@ -693,9 +783,15 @@ try {
     const statusIcon = info.supported ? '✅' : '⚠️';
     const statusColor = info.supported ? '#00ffcc' : '#ffaa00';
 
+    let inputToolInfo = '';
+    if (info.inputTool) {
+      const toolOk = info.inputTool.includes('✓');
+      inputToolInfo = ` | <span style="color: ${toolOk ? '#00ffcc' : '#ff6b6b'};">${info.inputTool}</span>`;
+    }
+
     platformElement.innerHTML = `
     <span style="color: ${statusColor};">${statusIcon} ${info.name}</span>
-    ${info.supported ? '' : ' - Soporte limitado'}
+    ${info.supported ? '' : ' - Soporte limitado'}${inputToolInfo}
   `;
     platformElement.style.color = statusColor;
   });
@@ -751,10 +847,10 @@ try {
   document.getElementById('toggleKeyboard').onclick = () => {
     const keyboardContainer = document.getElementById('smartKeyboard');
     const toggleBtn = document.getElementById('toggleKeyboard');
-    const isHidden = keyboardContainer.style.display === 'none';
+    const isHidden = keyboardContainer.style.display === 'none' || !keyboardContainer.style.display;
 
     if (isHidden) {
-      keyboardContainer.style.display = 'block';
+      keyboardContainer.style.display = 'flex';
       toggleBtn.style.backgroundColor = '';
       toggleBtn.style.color = 'var(--accent, #00ffcc)';
     } else {
@@ -763,6 +859,11 @@ try {
       toggleBtn.style.color = '#888';
     }
   };
+
+  // Set initial button style (keyboard is hidden by default)
+  const toggleBtn = document.getElementById('toggleKeyboard');
+  toggleBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+  toggleBtn.style.color = '#888';
 
   document.getElementById('settings').onclick = () => {
     console.log('⚙️ Settings button clicked');
@@ -788,7 +889,7 @@ try {
   // Real-time slider value updates
   const sliders = [
     'dwellTime', 'executionCooldown', 'emergencyTime',
-    'stabilityThreshold', 'deadZonePercent',
+    'mouseSensitivity', 'stabilityThreshold', 'deadZonePercent',
     'headTiltThreshold', 'eyebrowThreshold', 'mouthThreshold',
     'fatigueReduction', 'errorTolerance'
   ];
@@ -800,9 +901,20 @@ try {
     if (slider && valueSpan) {
       slider.oninput = () => {
         const value = parseFloat(slider.value);
-        const displayValue = id.includes('Percent') ? value :
-          id.includes('Threshold') && id !== 'stabilityThreshold' ? value.toFixed(3) :
-            value;
+        let displayValue;
+        if (id === 'mouseSensitivity') {
+          displayValue = value.toFixed(1);
+          // Update FaceTracker sensitivity in real-time
+          if (faceTracker) {
+            faceTracker.updateSensitivity(value);
+          }
+        } else if (id.includes('Percent')) {
+          displayValue = value;
+        } else if (id.includes('Threshold') && id !== 'stabilityThreshold') {
+          displayValue = value.toFixed(3);
+        } else {
+          displayValue = value;
+        }
         valueSpan.textContent = displayValue;
       };
     }
@@ -833,6 +945,7 @@ try {
       dwellTime: 'dwellValue',
       executionCooldown: 'cooldownValue',
       emergencyTime: 'emergencyValue',
+      mouseSensitivity: 'mouseSensitivityValue',
       stabilityThreshold: 'stabilityValue',
       deadZonePercent: 'deadZoneValue',
       headTiltThreshold: 'headTiltValue',
@@ -845,9 +958,18 @@ try {
       const valueSpan = document.getElementById(mappings[key]);
       if (slider && valueSpan && settings.thresholds[key] !== undefined) {
         slider.value = settings.thresholds[key];
-        const displayValue = key === 'deadZonePercent' ? settings.thresholds[key] :
-          ['blinkThreshold', 'eyebrowThreshold', 'mouthThreshold'].includes(key) ?
-            settings.thresholds[key].toFixed(3) : settings.thresholds[key];
+        let displayValue;
+        if (key === 'mouseSensitivity') {
+          displayValue = settings.thresholds[key].toFixed(1);
+        } else if (key === 'deadZonePercent') {
+          // Convert decimal to percentage for display
+          displayValue = Math.round(settings.thresholds[key] * 100);
+          slider.value = displayValue;
+        } else if (['blinkThreshold', 'eyebrowThreshold', 'mouthThreshold', 'headTiltThreshold'].includes(key)) {
+          displayValue = settings.thresholds[key].toFixed(3);
+        } else {
+          displayValue = settings.thresholds[key];
+        }
         valueSpan.textContent = displayValue;
       }
     });
@@ -869,6 +991,7 @@ try {
         dwellTime: parseInt(document.getElementById('dwellTime').value),
         executionCooldown: parseInt(document.getElementById('executionCooldown').value),
         emergencyTime: parseInt(document.getElementById('emergencyTime').value),
+        mouseSensitivity: parseFloat(document.getElementById('mouseSensitivity').value),
         stabilityThreshold: parseInt(document.getElementById('stabilityThreshold').value),
         deadZonePercent: parseFloat(document.getElementById('deadZonePercent').value) / 100,
         headTiltThreshold: parseFloat(document.getElementById('headTiltThreshold').value),
@@ -972,6 +1095,7 @@ try {
         dwellTime: parseInt(document.getElementById('dwellTime').value),
         executionCooldown: parseInt(document.getElementById('executionCooldown').value),
         emergencyTime: parseInt(document.getElementById('emergencyTime').value),
+        mouseSensitivity: parseFloat(document.getElementById('mouseSensitivity').value),
         stabilityThreshold: parseInt(document.getElementById('stabilityThreshold').value),
         deadZonePercent: parseFloat(document.getElementById('deadZonePercent').value) / 100,
         headTiltThreshold: parseFloat(document.getElementById('headTiltThreshold').value),
@@ -979,6 +1103,7 @@ try {
         mouthThreshold: parseFloat(document.getElementById('mouthThreshold').value)
       };
       faceTracker.updateThresholds(newThresholds);
+      faceTracker.updateSensitivity(newThresholds.mouseSensitivity);
       console.log('FaceTracker updated with new settings');
     }
 

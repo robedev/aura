@@ -11,7 +11,7 @@
 }
 
 .smart-keyboard-container {
-  display: flex;
+  display: none; /* Hidden by default, toggle with TECLADO button */
   flex-direction: column;
   gap: 10px;
   width: 100%;

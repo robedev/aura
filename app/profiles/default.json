@@ -12,8 +12,9 @@
   },
   "thresholds": {
     "dwellTime": 1000,
-    "stabilityThreshold": 10,
-    "deadZonePercent": 0.1,
+    "mouseSensitivity": 6,
+    "stabilityThreshold": 25,
+    "deadZonePercent": 0.03,
     "blinkThreshold": 0.25,
     "eyebrowThreshold": 0.15,
     "mouthThreshold": 0.08,
@@ -31,16 +32,16 @@
   "rules": [
     {
       "gesture": "mouthOpen",
-      "action": "volume-up",
+      "action": "click",
       "param": ""
     }
   ],
   "calibration": {
     "neutralPose": {
-      "x": 0.5386914610862732,
-      "y": 0.5065638422966003
+      "x": 0.5371999740600586,
+      "y": 0.6031532883644104
     },
-    "lastCalibrated": "2026-01-16T17:15:02.419Z",
+    "lastCalibrated": "2026-01-16T19:35:20.975Z",
     "adaptationHistory": []
   }
 }
