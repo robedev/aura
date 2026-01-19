@@ -2,7 +2,7 @@
 
 ---
 
-## [2.3.0] - 2026-01-19 - VISUALIZACIÓN AVANZADA Y SINCRONIZACIÓN 👁️
+## [0.2.3] - 2026-01-19 - VISUALIZACIÓN AVANZADA Y SINCRONIZACIÓN 👁️
 
 Mejoras significativas en el feedback visual y la precisión de la realidad aumentada.
 
@@ -17,7 +17,7 @@ Mejoras significativas en el feedback visual y la precisión de la realidad aume
 
 ---
 
-## [2.2.0] - 2026-01-19 - ESTABILIDAD, GESTOS AVANZADOS Y UX ✨
+## [0.2.2] - 2026-01-19 - ESTABILIDAD, GESTOS AVANZADOS Y UX ✨
 
 Actualización enfocada en la ergonomía, robustez del sistema y experiencia de usuario.
 
@@ -47,7 +47,7 @@ Actualización enfocada en la ergonomía, robustez del sistema y experiencia de 
 
 ---
 
-## [2.1.0] - 2026-01-18 - MEJORAS DE USABILIDAD Y PRECISIÓN ✨
+## [0.2.1] - 2026-01-18 - MEJORAS DE USABILIDAD Y PRECISIÓN ✨
 
 Esta actualización se centra en la **experiencia de usuario (UX)** y la **compatibilidad robusta**, resolviendo problemas críticos de movimiento en Linux/Wayland y mejorando significativamente la herramienta de comunicación.
 
@@ -76,7 +76,7 @@ Esta actualización se centra en la **experiencia de usuario (UX)** y la **compa
 
 ---
 
-## [2.0.0] - 2025-01-15 - REVOLUCIÓN COMPLETA ✅
+## [0.2.0] - 2025-01-15 - REVOLUCIÓN COMPLETA ✅
 
 ### 🎯 **TRANSFORMACIÓN TOTAL DEL PROYECTO**
 

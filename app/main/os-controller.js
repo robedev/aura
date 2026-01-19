@@ -396,29 +396,24 @@ class OSController {
         
         switch (this.platform) {
             case 'linux':
-                if (this.isWayland || (this.hasYdotool && !this.hasXdotool)) {
-                    if (!this.canUseYdotool) return;
+                let usedYdotool = false;
 
-                    // ydotool click: 0xC0=left, 0xC1=right, 0xC2=middle
+                if (this.canUseYdotool) {
                     const ydoBtn = ydotoolButtonMap[button] || '0xC0';
                     const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
-                    exec(`YDOTOOL_SOCKET=${socketPath} ydotool click ${ydoBtn}`, (error) => {
-                        if (error) {
-                            console.error('OSController: ydotool click error:', error.message);
-                            console.error('OSController: Make sure ydotoold daemon is running');
-                        }
-                    });
-                } else {
+                    
+                    if (fs.existsSync(socketPath)) {
+                        this.executeCommand(`YDOTOOL_SOCKET=${socketPath} ydotool click ${ydoBtn}`);
+                        usedYdotool = true;
+                    }
+                }
+
+                if (!usedYdotool) {
+                    // Fallback to xdotool
                     const xdoBtn = xdotoolButtonMap[button] || 1;
-                    exec(`xdotool click ${xdoBtn}`, (error) => {
-                        if (error) {
-                            console.error('OSController: xdotool click error:', error.message);
-                            // Try ydotool as fallback
-                            if (this.hasYdotool) {
-                                const ydoBtn = ydotoolButtonMap[button] || '0xC0';
-                                const socketPath = process.env.YDOTOOL_SOCKET || '/tmp/.ydotool_socket';
-                                exec(`YDOTOOL_SOCKET=${socketPath} ydotool click ${ydoBtn}`);
-                            }
+                    this.executeCommand(`xdotool click ${xdoBtn}`, (code) => {
+                        if (code !== 0) {
+                             console.error(`OSController: Click execution failed (xdotool exit code ${code}). Ensure xdotool is installed or try running ydotoold.`);
                         }
                     });
                 }

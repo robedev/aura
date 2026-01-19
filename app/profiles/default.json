@@ -31,21 +31,6 @@
   },
   "rules": [
     {
-      "gesture": "dwellPlusEyebrowRaise",
-      "action": "click",
-      "param": ""
-    },
-    {
-      "gesture": "dwellPlusMouthOpen",
-      "action": "right-click",
-      "param": ""
-    },
-    {
-      "gesture": "gazeExtremeRight",
-      "action": "undo",
-      "param": ""
-    },
-    {
       "gesture": "mouthOpenSustained",
       "action": "type",
       "param": "Aura"

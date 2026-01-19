@@ -1,7 +1,7 @@
 {
   "name": "aura",
-  "version": "2.0.0",
-  "description": "Aplicación revolucionaria de accesibilidad facial con IA adaptativa, calibración automática y detección precisa para personas con cuadriplejia",
+  "version": "0.2.3",
+  "description": "Control de mouse y teclado mediante gestos faciales",
   "main": "app/main/main.js",
   "homepage": "https://github.com/robedev/aura",
   "repository": {
