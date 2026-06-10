@@ -5,25 +5,25 @@ This document provides guidelines for AI coding agents working on the Aura acces
 ## Build, Test, and Development Commands
 
 ### Core Commands
-- `npm start` - Launch the Electron application in development mode
-- `npm run build` - Build the application using electron-builder
-- `npm run dist` - Build distributable packages for all platforms (Linux: .AppImage + .deb, Windows: .exe, macOS: .dmg)
+- `pnpm start` - Launch the Electron application in development mode
+- `pnpm run build` - Build the application using electron-builder
+- `pnpm run dist` - Build distributable packages for all platforms (Linux: .AppImage + .deb, Windows: .exe, macOS: .dmg)
 
 ### Testing Commands
-- `npm test` - Currently a placeholder (no tests implemented)
-- `npm run test-gestures` - Automated testing of gesture detection stability and false positive analysis
-- `npm run test-cleanup` - Verify proper process cleanup (ensures no orphaned processes remain)
-- `npm run check-platform` - Comprehensive platform compatibility check (dependencies, hardware, permissions)
+- `pnpm test` - Currently a placeholder (no tests implemented)
+- `pnpm run test-gestures` - Automated testing of gesture detection stability and false positive analysis
+- `pnpm run test-cleanup` - Verify proper process cleanup (ensures no orphaned processes remain)
+- `pnpm run check-platform` - Comprehensive platform compatibility check (dependencies, hardware, permissions)
 
 ### Development Setup
-- `npm run install-deps` - Install platform-specific system dependencies automatically
-- `npm install` - Install Node.js dependencies
+- `pnpm run install-deps` - Install platform-specific system dependencies automatically
+- `pnpm install` - Install Node.js dependencies
 
 ### Single Test Execution
 Currently, there is no framework for running individual tests. The testing approach focuses on:
-- Integration testing via `npm run test-gestures` (analyzes gesture detection behavior)
-- Process cleanup verification via `npm run test-cleanup`
-- Platform compatibility testing via `npm run check-platform`
+- Integration testing via `pnpm run test-gestures` (analyzes gesture detection behavior)
+- Process cleanup verification via `pnpm run test-cleanup`
+- Platform compatibility testing via `pnpm run check-platform`
 
 ## Code Style Guidelines
 
@@ -116,7 +116,7 @@ scripts/            # Build and test utilities
 ### Development Workflow
 1. **Feature development**: Create feature branch from main
 2. **Platform testing**: Verify on target platforms
-3. **Integration testing**: Run `npm run test-gestures` and `npm run test-cleanup`
+3. **Integration testing**: Run `pnpm run test-gestures` and `pnpm run test-cleanup`
 4. **Code review**: Follow checklist above
 5. **Merge**: Squash merge with clear commit message
 

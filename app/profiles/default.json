@@ -29,29 +29,13 @@
     "errorTolerance": 1.2,
     "learningRate": 0.1
   },
-  "rules": [
-    {
-      "gesture": "mouthOpenSustained",
-      "action": "type",
-      "param": "Aura"
-    },
-    {
-      "gesture": "pauseCompound",
-      "action": "minimize-window",
-      "param": ""
-    },
-    {
-      "gesture": "smileLeft",
-      "action": "click",
-      "param": ""
-    }
-  ],
+  "rules": [],
   "calibration": {
     "neutralPose": {
-      "x": 0.5371999740600586,
-      "y": 0.6031532883644104
+      "x": 0.5217776894569397,
+      "y": 0.6092946529388428
     },
-    "lastCalibrated": "2026-01-16T19:35:20.975Z",
+    "lastCalibrated": "2026-06-10T01:54:11.441Z",
     "adaptationHistory": []
   }
 }

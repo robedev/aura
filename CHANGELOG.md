@@ -100,7 +100,7 @@ Esta versión representa una **revolución completa** en accesibilidad facial, c
 - ✅ **Linux 100%**: xdotool, ALSA, eSpeak/Festival, instalación automática
 - ✅ **Windows 100%**: PowerShell, .NET Framework, compatibilidad completa
 - ✅ **macOS 100%**: AppleScript, Accessibility APIs, integración nativa
-- ✅ **Scripts de instalación**: `npm run check-platform`, `npm run install-deps`
+- ✅ **Scripts de instalación**: `pnpm run check-platform`, `pnpm run install-deps`
 - ✅ **Verificación automática**: Compatibilidad y dependencias validadas
 
 ### 🖱️ **CONTROL PROFESIONAL DEL MOUSE**
@@ -134,7 +134,7 @@ Esta versión representa una **revolución completa** en accesibilidad facial, c
 - ✅ **Tracking inteligente**: Monitoreo de procesos del SO
 - ✅ **Timeouts de seguridad**: Terminación automática de procesos largos
 - ✅ **Manejo de señales**: SIGINT/SIGTERM con cleanup graceful
-- ✅ **Testing automatizado**: `npm run test-cleanup` verifica limpieza
+- ✅ **Testing automatizado**: `pnpm run test-cleanup` verifica limpieza
 
 ### 🔊 **ASISTENTE MULTIMEDIA INTELIGENTE**
 - ✅ **Control de volumen**: Precisión y atajos dedicados
@@ -143,9 +143,9 @@ Esta versión representa una **revolución completa** en accesibilidad facial, c
 - ✅ **Atajos contextuales**: Combinaciones personalizadas
 
 ### 🧪 **TESTING PROFESIONAL Y VALIDACIÓN**
-- ✅ **Verificación de plataforma**: `npm run check-platform`
-- ✅ **Testing de procesos**: `npm run test-cleanup`
-- ✅ **Testing de gestos**: `npm run test-gestures` (nuevo)
+- ✅ **Verificación de plataforma**: `pnpm run check-platform`
+- ✅ **Testing de procesos**: `pnpm run test-cleanup`
+- ✅ **Testing de gestos**: `pnpm run test-gestures` (nuevo)
 - ✅ **Suite completa**: Tests unitarios y de integración
 - ✅ **Monitoreo en tiempo real**: Dashboard de rendimiento
 - ✅ **Validación de estabilidad**: Análisis de falsos positivos

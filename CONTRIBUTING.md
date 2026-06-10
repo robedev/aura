@@ -63,16 +63,16 @@ git clone https://github.com/aura-project/aura.git
 cd aura
 
 # Instala dependencias
-npm install
+pnpm install
 
 # Verifica compatibilidad
-npm run check-platform
+pnpm run check-platform
 
 # Instala dependencias del sistema
-npm run install-deps
+pnpm run install-deps
 
 # Verifica que todo funcione
-npm start
+pnpm start
 ```
 
 ### Estructura del Proyecto
@@ -127,16 +127,16 @@ Tipos de commit:
 #### Ejecutar Tests
 ```bash
 # Tests unitarios
-npm test
+pnpm test
 
 # Verificación de procesos
-npm run test-cleanup
+pnpm run test-cleanup
 
 # Testing de gestos y detección
-npm run test-gestures
+pnpm run test-gestures
 
 # Verificación de plataforma
-npm run check-platform
+pnpm run check-platform
 ```
 
 #### Escribir Tests
@@ -186,7 +186,7 @@ LOG_LEVEL=debug
 ```
 
 ### Debugging
-- Usa `npm start` para desarrollo con DevTools
+- Usa `pnpm start` para desarrollo con DevTools
 - Logs detallados en consola del main process
 - Profiling de performance disponible
 

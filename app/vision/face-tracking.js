@@ -52,8 +52,10 @@ class FaceTracker {
     this.stableStart = null;
     this.filteredX = null;
     this.filteredY = null;
-    this.alpha = 0.4; // Exponential filter alpha (increased for faster response)
-    this.adaptiveSensitivity = 3.0; // Adaptive factor (increased for more noticeable movement)
+    this.filteredPos = null;      // EMA de posición nariz (reduce vibración antes de calcular delta)
+    this.lastFilteredPos = null;
+    this.alpha = 0.4;
+    this.adaptiveSensitivity = 3.0;
     this.emergencyStart = null;
 
     this.neutralPose = null; // Store neutral pose for calibration
@@ -63,7 +65,9 @@ class FaceTracker {
     this.sustainedStates = {
       mouthOpen: { start: null, duration: 500 },
       headTiltLeft: { start: null, duration: 1000 },
-      headTiltRight: { start: null, duration: 1000 }
+      headTiltRight: { start: null, duration: 1000 },
+      smileLeft: { start: null, duration: 400 },
+      smileRight: { start: null, duration: 400 }
     };
     this.pauseStart = null;
     this.lastRawPos = null;
@@ -273,150 +277,103 @@ class FaceTracker {
         }
         break;
       case 'observing':
-        // Calculate head position for mouse control only in observing
-        // console.log('🖱️  In observing state - calculating mouse position');
         const nose = landmarks[1];
-        const screenWidth = window.screen.width;
-        const screenHeight = window.screen.height;
-        const centerX = screenWidth / 2;
-        const centerY = screenHeight / 2;
 
-        // Calibration logic
+        // Calibración de pose neutral
         if (this.calibrating || !this.neutralPose) {
           this.neutralPose = { x: nose.x, y: nose.y };
           if (this.calibrating) {
-             this.calibrating = false;
-             console.log('FaceTracker: Calibrated at', this.neutralPose);
-             ipc.send('calibrate-save', this.neutralPose);
+            this.calibrating = false;
+            console.log('FaceTracker: Calibrated at', this.neutralPose);
+            window.auraAPI.send('calibrate-save', this.neutralPose);
           }
         }
 
         const refX = this.neutralPose ? this.neutralPose.x : 0.5;
         const refY = this.neutralPose ? this.neutralPose.y : 0.5;
 
-        // Calculate raw position (0.0 to 1.0) relative to neutral pose
-        // Inverted X for mirror effect
-        const rawX = refX - (nose.x - refX); 
+        // Posición cruda relativa a pose neutral (X invertida para efecto espejo)
+        const rawX = refX - (nose.x - refX);
         const rawY = nose.y - refY;
 
-        // Calculate DELTA from last frame's raw position
-        if (!this.lastRawPos) {
-            this.lastRawPos = { x: rawX, y: rawY };
-            return; // Skip first frame
+        // Paso 1: EMA sobre la POSICIÓN (no el delta) para filtrar el ruido de MediaPipe.
+        // Al suavizar la posición primero, el delta resultante tiene mucho menos ruido
+        // y la zona muerta normalizada puede eliminar la vibración efectivamente.
+        if (!this.filteredPos) {
+          this.filteredPos = { x: rawX, y: rawY };
+          this.lastFilteredPos = { x: rawX, y: rawY };
+          this.lastRawPos = { x: rawX, y: rawY };
+          return;
         }
+        const posAlpha = 0.3;
+        this.filteredPos.x = posAlpha * rawX + (1 - posAlpha) * this.filteredPos.x;
+        this.filteredPos.y = posAlpha * rawY + (1 - posAlpha) * this.filteredPos.y;
 
-        const deltaXRaw = rawX - this.lastRawPos.x;
-        const deltaYRaw = rawY - this.lastRawPos.y;
-        
-        // Update stability for dwellGaze
-        const dist = Math.sqrt(deltaXRaw**2 + deltaYRaw**2);
-        // Stability threshold is typically 10-30 pixels. In normalized 0-1 coords, 
-        // 10 pixels on a 1920 screen is approx 0.005.
-        const normalizedStabilityThreshold = (currentThresholds.stabilityThreshold || 10) / 2000;
-        
-        if (dist < normalizedStabilityThreshold) {
-            if (!this.stableStart) this.stableStart = Date.now();
-        } else {
-            this.stableStart = null;
-        }
-        
-        // Update last pos
+        // Paso 2: Delta desde posición suavizada (ruido ~5× menor que delta crudo)
+        const deltaXRaw = this.filteredPos.x - this.lastFilteredPos.x;
+        const deltaYRaw = this.filteredPos.y - this.lastFilteredPos.y;
+        this.lastFilteredPos.x = this.filteredPos.x;
+        this.lastFilteredPos.y = this.filteredPos.y;
         this.lastRawPos = { x: rawX, y: rawY };
 
-        // Apply sensitivity and screen scale to delta
-        // Sensitivity: 3.0 means reasonable speed. 
-        // Screen scale: 1920x1080 typical.
-        // We use a multiplier to convert normalized delta (e.g. 0.001) to pixels
-        const speedMultiplier = 3000 * (this.adaptiveSensitivity || 1.0); 
-        
-        let dx = deltaXRaw * speedMultiplier;
-        let dy = deltaYRaw * speedMultiplier;
-
-        // Apply Dead Zone to DELTA (ignore very small movements)
-        const deadZone = this.getCurrentThresholds().deadZonePercent * 10; // Simple threshold
-        
-        // Sophisticated Smoothing: Adaptive Weighted Moving Average
-        // If movement is fast, use less smoothing (responsive).
-        // If movement is slow, use more smoothing (stable).
-        
-        const movementMagnitude = Math.sqrt(dx*dx + dy*dy);
-        
-        // Dynamic Alpha: 
-        // fast movement (>50px) -> alpha ~ 0.8 (responsive)
-        // slow movement (<5px)  -> alpha ~ 0.1 (very smooth)
-        let dynamicAlpha = Math.min(0.9, Math.max(0.05, movementMagnitude / 60));
-        
-        // Deadzone check with ramping (avoids jerky start)
-        if (movementMagnitude < deadZone) {
-            dx = 0;
-            dy = 0;
-            // When stopped, reset filter to current pos to avoid "drift" on restart
-            if (this.filteredDelta) {
-                 this.filteredDelta.x = 0;
-                 this.filteredDelta.y = 0;
-            }
+        // Estabilidad para dwell gaze
+        const dist = Math.sqrt(deltaXRaw**2 + deltaYRaw**2);
+        const normalizedStabilityThreshold = (currentThresholds.stabilityThreshold || 10) / 2000;
+        if (dist < normalizedStabilityThreshold) {
+          if (!this.stableStart) this.stableStart = Date.now();
         } else {
-            // Soften the transition out of deadzone
-            const ratio = (movementMagnitude - deadZone) / movementMagnitude;
-            dx *= ratio;
-            dy *= ratio;
+          this.stableStart = null;
         }
 
-        // Apply smoothing to DELTA
-        if (!this.filteredDelta) {
+        // Paso 3: Zona muerta en espacio normalizado, ANTES de amplificar.
+        // Con posAlpha=0.3, el ruido residual del delta es ~0.0002 normalized.
+        // Una zona muerta de 0.001 da un margen de ~5σ → vibración eliminada.
+        const normalizedMagnitude = Math.sqrt(deltaXRaw**2 + deltaYRaw**2);
+        const deadZoneNorm = (currentThresholds.deadZonePercent || 0.01) * 0.1;
+
+        if (normalizedMagnitude < deadZoneNorm) {
+          // Decaer filteredDelta suavemente al detenerse para evitar inercia residual
+          if (this.filteredDelta) {
+            this.filteredDelta.x *= 0.7;
+            this.filteredDelta.y *= 0.7;
+          }
+        } else {
+          // Paso 4: Amplificar a píxeles con rampa suave al salir de la zona muerta
+          const speedMultiplier = 9375 * (this.adaptiveSensitivity || 3.0);
+          const rampFactor = (normalizedMagnitude - deadZoneNorm) / normalizedMagnitude;
+          let dx = deltaXRaw * speedMultiplier * rampFactor;
+          let dy = deltaYRaw * speedMultiplier * rampFactor;
+
+          // Paso 5: EMA sobre el delta para suavizar la velocidad del cursor
+          if (!this.filteredDelta) {
             this.filteredDelta = { x: dx, y: dy };
-        } else {
-            this.filteredDelta.x = dynamicAlpha * dx + (1 - dynamicAlpha) * this.filteredDelta.x;
-            this.filteredDelta.y = dynamicAlpha * dy + (1 - dynamicAlpha) * this.filteredDelta.y;
-        }
-        
-        // Use accumulated fraction to prevent pixel loss on slow movements
-        if (!this.residualMouse) this.residualMouse = { x: 0, y: 0 };
-        
-        const totalMoveX = this.filteredDelta.x + this.residualMouse.x;
-        const totalMoveY = this.filteredDelta.y + this.residualMouse.y;
-        
-        const moveX = Math.round(totalMoveX);
-        const moveY = Math.round(totalMoveY);
-        
-        // Store remainder for next frame
-        this.residualMouse.x = totalMoveX - moveX;
-        this.residualMouse.y = totalMoveY - moveY;
-
-        if (moveX !== 0 || moveY !== 0) {
-             // Throttle IPC
-             const now = Date.now();
-             if (!this.lastMoveTime || now - this.lastMoveTime > 15) {
-                 window.auraAPI.send('move-mouse-relative', moveX, moveY);
-                 this.lastMoveTime = now;
-             }
-        }
-        
-        // Check dwell (Legacy logic kept but unused for movement)
-        /*
-        if (this.lastMousePos) { ... }
-        */
-
-        // Alternative: mouth gesture to preselection (ONLY way to enter preselection now)
-        // The dwell time was causing the system to enter preselection state too quickly,
-        // preventing continuous mouse movement. Users can still enter preselection by opening mouth.
-        /*
-        if (this.lastMousePos) {
-          const distance = Math.sqrt((filteredX - this.lastMousePos.x) ** 2 + (filteredY - this.lastMousePos.y) ** 2);
-          if (distance < currentThresholds.stabilityThreshold) {
-            if (!this.stableStart) {
-              this.stableStart = Date.now();
-            } else if (Date.now() - this.stableStart > currentThresholds.dwellTime) {
-              this.setState('preselection');
-            }
           } else {
-            this.stableStart = null;
+            const deltaAlpha = 0.6;
+            this.filteredDelta.x = deltaAlpha * dx + (1 - deltaAlpha) * this.filteredDelta.x;
+            this.filteredDelta.y = deltaAlpha * dy + (1 - deltaAlpha) * this.filteredDelta.y;
           }
         }
-        this.lastMousePos = { x: filteredX, y: filteredY };
-        */
 
-        // Alternative: mouth gesture to preselection (ONLY way to enter preselection now)
+        // Paso 6: Acumular fracción decimal para no perder píxeles en movimientos lentos
+        if (this.filteredDelta) {
+          if (!this.residualMouse) this.residualMouse = { x: 0, y: 0 };
+          const totalMoveX = this.filteredDelta.x + this.residualMouse.x;
+          const totalMoveY = this.filteredDelta.y + this.residualMouse.y;
+          const moveX = Math.round(totalMoveX);
+          const moveY = Math.round(totalMoveY);
+          this.residualMouse.x = totalMoveX - moveX;
+          this.residualMouse.y = totalMoveY - moveY;
+
+          if (moveX !== 0 || moveY !== 0) {
+            const now = Date.now();
+            if (!this.lastMoveTime || now - this.lastMoveTime > 15) {
+              window.auraAPI.send('move-mouse-relative', moveX, moveY);
+              this.lastMoveTime = now;
+            }
+          }
+        }
+
+        // Boca abierta → preselección para click
         if (gestures.mouthOpen) {
           this.setState('preselection');
         }
@@ -472,6 +429,8 @@ class FaceTracker {
       mouthOpenSustained: false,
       smileLeft: false,
       smileRight: false,
+      smileLeftSustained: false,
+      smileRightSustained: false,
       headTiltLeft: false,
       headTiltRight: false,
       headTiltLeftSustained: false,
@@ -543,10 +502,28 @@ class FaceTracker {
     // Y increases downwards, so a smile (corner moving UP) means Y decreases.
     // We compare each corner relative to the mouth center/baseline.
     const mouthCenterY = (mouthUpper.y + mouthLower.y) / 2;
-    const smileThreshold = 0.015;
-    
-    if (mouthCenterY - mouthLeftCorner.y > smileThreshold) gestures.smileLeft = true;
-    if (mouthCenterY - mouthRightCorner.y > smileThreshold) gestures.smileRight = true;
+    // Umbral más alto (0.035 vs 0.015) + tiempo mínimo (400ms) para evitar falsos positivos
+    const smileThreshold = 0.035;
+
+    if (mouthCenterY - mouthLeftCorner.y > smileThreshold) {
+      gestures.smileLeft = true;
+      if (!this.sustainedStates.smileLeft.start) this.sustainedStates.smileLeft.start = now;
+      if (now - this.sustainedStates.smileLeft.start > this.sustainedStates.smileLeft.duration) {
+        gestures.smileLeftSustained = true;
+      }
+    } else {
+      this.sustainedStates.smileLeft.start = null;
+    }
+
+    if (mouthCenterY - mouthRightCorner.y > smileThreshold) {
+      gestures.smileRight = true;
+      if (!this.sustainedStates.smileRight.start) this.sustainedStates.smileRight.start = now;
+      if (now - this.sustainedStates.smileRight.start > this.sustainedStates.smileRight.duration) {
+        gestures.smileRightSustained = true;
+      }
+    } else {
+      this.sustainedStates.smileRight.start = null;
+    }
 
     // 5. Gaze / Iris (Extreme movements)
     if (landmarks.length > 473) {
@@ -565,7 +542,7 @@ class FaceTracker {
       const avgGazeY = (leftIris.y - leftEyeCenter.y + rightIris.y - rightEyeCenter.y) / 2;
       
       const gazeThresholdX = 0.02;
-      const gazeThresholdY = 0.01;
+      const gazeThresholdY = 0.025; // Más estricto: requiere mirada hacia arriba deliberada
       
       if (avgGazeY < -gazeThresholdY) gestures.gazeUp = true;
       if (avgGazeX < -gazeThresholdX) gestures.gazeExtremeLeft = true;
@@ -579,9 +556,10 @@ class FaceTracker {
 
     // 7. Pause Compound
     // Gesto compuesto de pausa: Mirada arriba + ceja levantada + boca cerrada (1s)
-    if (gestures.gazeUp && gestures.eyebrowRaise && !gestures.mouthOpen) {
+    // Requiere ambas cejas levantadas (no solo una) y 2s sostenido para evitar activación accidental
+    if (gestures.gazeUp && gestures.eyebrowRaiseLeft && gestures.eyebrowRaiseRight && !gestures.mouthOpen) {
       if (!this.pauseStart) this.pauseStart = now;
-      if (now - this.pauseStart > 1000) gestures.pauseCompound = true;
+      if (now - this.pauseStart > 2000) gestures.pauseCompound = true;
     } else {
       this.pauseStart = null;
     }
@@ -605,7 +583,13 @@ class FaceTracker {
     } else {
       this.preselectionStart = null;
     }
-    // Send state update to main
+    // Al perder la cara, resetear filtros para evitar salto al recuperarla
+    if (newState === 'inactive') {
+      this.filteredPos = null;
+      this.lastFilteredPos = null;
+      this.filteredDelta = null;
+      this.residualMouse = null;
+    }
     window.auraAPI.send('state-update', newState);
   }
 

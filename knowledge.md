@@ -9,11 +9,11 @@ This file gives Codebuff context about your project: goals, commands, convention
 Aura is an Electron desktop app for facial gesture-based computer control, designed for people with quadriplegia. It uses MediaPipe Face Mesh for real-time landmark detection and translates head/face movements into mouse, keyboard, and system actions. Features adaptive AI that learns user patterns.
 
 ## Quickstart
-- Setup: `npm install && npm run install-deps`
-- Dev: `npm start`
-- Test: `npm test` (unit), `npm run test-cleanup` (process cleanup), `npm run test-gestures` (gesture detection)
-- Build: `npm run dist` (creates platform installers)
-- Check platform compatibility: `npm run check-platform`
+- Setup: `pnpm install && pnpm run install-deps`
+- Dev: `pnpm start`
+- Test: `pnpm test` (unit), `pnpm run test-cleanup` (process cleanup), `pnpm run test-gestures` (gesture detection)
+- Build: `pnpm run dist` (creates platform installers)
+- Check platform compatibility: `pnpm run check-platform`
 
 ## Architecture
 - Key directories:
@@ -35,7 +35,7 @@ Aura is an Electron desktop app for facial gesture-based computer control, desig
 ## Things to avoid
 - Don't leave orphan processes (xdotool, espeak) - always clean up in os-controller.js
 - Don't send data to cloud - all processing is local for privacy
-- Don't assume global npm installs - use project-local dependencies
+- Don't assume global pnpm installs - use project-local dependencies
 - Avoid blocking the main process - use async/await for OS commands
 
 ## Gotchas

@@ -157,7 +157,7 @@ Aura - Arquitectura Completa
 
 ### Prerrequisitos
 - Node.js 18+
-- npm o yarn
+- pnpm
 - Webcam compatible
 
 ### Plataformas Soportadas
@@ -175,21 +175,21 @@ cd aura
 
 2. **Instala dependencias de Node.js:**
 ```bash
-npm install
+pnpm install
 ```
 
 3. **Instala dependencias del sistema:**
 ```bash
 # Verificar compatibilidad
-npm run check-platform
+pnpm run check-platform
 
 # Instalar dependencias automáticamente
-npm run install-deps
+pnpm run install-deps
 ```
 
 4. **Ejecuta la aplicación:**
 ```bash
-npm start
+pnpm start
 ```
 
 ### Instalación Manual por Plataforma
@@ -218,7 +218,7 @@ sudo pacman -S xdotool espeak festival
 
 #### Verificar Compatibilidad del Sistema
 ```bash
-npm run check-platform
+pnpm run check-platform
 ```
 - ✅ Verificación automática de dependencias
 - ✅ Compatibilidad de hardware validada
@@ -226,7 +226,7 @@ npm run check-platform
 
 #### Probar Limpieza de Procesos
 ```bash
-npm run test-cleanup
+pnpm run test-cleanup
 ```
 - ✅ Verificación de procesos huérfanos
 - ✅ Testing de cierre graceful
@@ -234,7 +234,7 @@ npm run test-cleanup
 
 #### Testing de Detección de Gestos
 ```bash
-npm run test-gestures
+pnpm run test-gestures
 ```
 - ✅ Análisis de falsos positivos
 - ✅ Validación de umbrales apropiados
@@ -242,7 +242,7 @@ npm run test-gestures
 
 #### Suite Completa de Tests
 ```bash
-npm test
+pnpm test
 ```
 - ✅ Tests unitarios y de integración
 - ✅ Testing automatizado completo
@@ -265,7 +265,7 @@ Aura implementa una **limpieza completa de procesos** para evitar interferencias
 
 #### 🧪 Verificación
 ```bash
-npm run test-cleanup  # Verifica que no queden procesos huérfanos
+pnpm run test-cleanup  # Verifica que no queden procesos huérfanos
 ```
 
 **Resultado**: Al cerrar Aura, **no quedan procesos activos** que puedan interferir con el sistema (como escritura automática de letras).
@@ -372,7 +372,7 @@ Cada perfil incluye automáticamente:
 
 #### **Verificación de Compatibilidad**
 ```bash
-npm run check-platform  # Diagnóstico completo del sistema
+pnpm run check-platform  # Diagnóstico completo del sistema
 ```
 - ✅ Verificación de dependencias del SO
 - ✅ Compatibilidad de hardware
@@ -381,7 +381,7 @@ npm run check-platform  # Diagnóstico completo del sistema
 
 #### **Testing de Limpieza de Procesos**
 ```bash
-npm run test-cleanup    # Verificación de procesos huérfanos
+pnpm run test-cleanup    # Verificación de procesos huérfanos
 ```
 - ✅ Monitoreo de procesos antes/durante/después
 - ✅ Detección de procesos huérfanos
@@ -390,7 +390,7 @@ npm run test-cleanup    # Verificación de procesos huérfanos
 
 #### **Suite de Tests Completa**
 ```bash
-npm test               # Tests automatizados
+pnpm test               # Tests automatizados
 ```
 - ✅ Tests unitarios de componentes
 - ✅ Tests de integración
@@ -560,7 +560,7 @@ Para preguntas, soporte o colaboraciones:
 
 ```bash
 # Generar todos los paquetes de distribución
-npm run dist
+pnpm run dist
 
 # Resultado: archivos listos para distribución
 # - Linux: .AppImage + .deb
