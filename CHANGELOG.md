@@ -2,6 +2,38 @@
 
 ---
 
+## [0.2.4] - 2026-06-30 - CORRECCIONES CRÍTICAS Y PERSISTENCIA DE APRENDIZAJE 🔧
+
+### 🐛 **CORRECCIONES CRÍTICAS**
+
+- ✅ **Fix ReferenceError `scanMode`**: Variable declarada correctamente en el renderer; ya no lanza ReferenceError al activar el modo ESCANEO antes de cualquier otra interacción.
+- ✅ **Fix listener IPC duplicado `settings-saved`**: El segundo listener sobrescribía los thresholds recién guardados con valores por defecto. Separado en dos eventos: `settings-saved` (guardar configuración) y `settings-reset` (restablecer a predeterminados). La configuración guardada ahora persiste correctamente.
+- ✅ **Fix doble cleanup en cierre**: Flag `cleanupDone` hace `cleanupAura()` idempotente; ya no se ejecuta dos veces al cerrar la aplicación.
+
+### 🧠 **PERSISTENCIA DEL APRENDIZAJE DEL PREDICTOR**
+
+- ✅ **`userDictionary` ahora persiste**: Las palabras nuevas aprendidas por el usuario ya no se pierden al reiniciar la aplicación. Se guardan en el perfil JSON (`profile.learnings`) y se restauran automáticamente al arrancar.
+- ✅ **Bigramas persistentes**: Los patrones de predicción de siguiente palabra también se serializan y restauran entre sesiones.
+- ✅ **Nuevos métodos `getLearnings()` / `loadLearnings()`** en `PredictionEngine` para serialización eficiente.
+
+### 🎹 **TECLADO INTELIGENTE — MEJORAS VISUALES**
+
+- ✅ **Dwell indicator activado**: El indicador de progreso CSS (`.dwell-indicator`) ahora está presente en el DOM de cada tecla, listo para animarse durante la preselección por mirada sostenida.
+- ✅ **`position: relative; overflow: hidden`** en `.key-btn` para contener correctamente el indicador de dwell dentro de cada tecla.
+
+### 🚨 **GESTO DE PAUSA DE EMERGENCIA — CABLEADO Y PROTECCIONES**
+
+- ✅ **`pauseCompound` ahora funciona**: El gesto compuesto (mirada arriba + ambas cejas levantadas + boca cerrada, 2 segundos) ahora dispara directamente la pausa de emergencia, sin depender del motor de reglas.
+- ✅ **Período de gracia de 5 segundos**: El gesto de pausa no puede activarse durante los primeros 5 segundos tras el arranque, evitando falsos positivos durante la inicialización de cámara y calibración.
+- ✅ **Reset de temporizador al perder la cara**: El contador del gesto compuesto se reinicia cuando MediaPipe deja de detectar el rostro, evitando que el tiempo acumule a través de ciclos de pérdida/recuperación de cara.
+- ✅ **Guard de calibración**: El gesto de pausa no se evalúa mientras la calibración automática inicial está en progreso.
+
+### ⚙️ **CONFIGURACIÓN DE ENTORNO**
+
+- ✅ **`pnpm-workspace.yaml` corregido**: `allowBuilds: electron: true` + `onlyBuiltDependencies: [electron]` elimina el error `ERR_PNPM_IGNORED_BUILDS` en pnpm v11 al ejecutar `pnpm install`.
+
+---
+
 ## [0.2.3] - 2026-01-19 - VISUALIZACIÓN AVANZADA Y SINCRONIZACIÓN 👁️
 
 Mejoras significativas en el feedback visual y la precisión de la realidad aumentada.

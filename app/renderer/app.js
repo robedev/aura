@@ -3,8 +3,12 @@ console.log('🚀 Aura renderer loaded');
 
 try {
 
+  let cleanupDone = false;
+
   // Global cleanup function
   window.cleanupAura = function () {
+    if (cleanupDone) return;
+    cleanupDone = true;
     console.log('🧹 Performing comprehensive Aura cleanup...');
 
     // Phase 1: Clear all timers and intervals
@@ -220,6 +224,9 @@ try {
     if (profile.rules) {
       updateRulesList(profile.rules);
     }
+    if (profile.learnings) {
+      predictor.loadLearnings(profile.learnings);
+    }
   });
 
   let isSystemPaused = false;
@@ -241,6 +248,7 @@ try {
     'Tengo sed', 'Tengo hambre', 'Baño', 'Dolor', 'Llama a'
   ];
   let isPhraseMode = false;
+  let scanMode = false;
 
   // Keyboard Layout: Optimized for frequency (not strictly QWERTY) but familiar
   const KEYBOARD_LAYOUT = [
@@ -400,6 +408,9 @@ try {
           }
 
           btn.onclick = () => handleKeyPress(key);
+          const dwellBar = document.createElement('div');
+          dwellBar.className = 'dwell-indicator';
+          btn.appendChild(dwellBar);
           rowDiv.appendChild(btn);
         });
 
@@ -1162,28 +1173,57 @@ try {
     auraAPI.send('resize-window', 900, 700);
   });
 
-  // Also update FaceTracker when settings are reset
-  auraAPI.on('settings-saved', () => {
+  // Actualizar FaceTracker y formulario cuando se restablece la configuración
+  auraAPI.on('settings-reset', () => {
+    const defaultThresholds = {
+      dwellTime: 1000,
+      stabilityThreshold: 10,
+      deadZonePercent: 0.03,
+      headTiltThreshold: 0.15,
+      eyebrowThreshold: 0.15,
+      mouthThreshold: 0.08,
+      emergencyTime: 2000,
+      executionCooldown: 800,
+      mouseSensitivity: 3.0
+    };
     if (faceTracker) {
-      // Reset to default thresholds
-      const defaultThresholds = {
-        dwellTime: 1000,
-        stabilityThreshold: 10,
-        deadZonePercent: 0.1,
-        headTiltThreshold: 0.15,
-        eyebrowThreshold: 0.05,
-        mouthThreshold: 0.03,
-        emergencyTime: 2000,
-        executionCooldown: 800
-      };
       faceTracker.updateThresholds(defaultThresholds);
-      console.log('FaceTracker reset to default settings');
+      console.log('✅ FaceTracker restablecido a valores predeterminados');
     }
+    // Actualizar valores del formulario si el panel de ajustes está abierto
+    const fieldMap = {
+      dwellTime: 'dwellValue',
+      executionCooldown: 'executionCooldownValue',
+      emergencyTime: 'emergencyTimeValue',
+      mouseSensitivity: 'mouseSensitivityValue',
+      stabilityThreshold: 'stabilityThresholdValue',
+      deadZonePercent: 'deadZonePercentValue',
+      headTiltThreshold: 'headTiltThresholdValue',
+      eyebrowThreshold: 'eyebrowThresholdValue',
+      mouthThreshold: 'mouthThresholdValue'
+    };
+    Object.entries(fieldMap).forEach(([field, displayId]) => {
+      const input = document.getElementById(field);
+      const display = document.getElementById(displayId);
+      if (input && defaultThresholds[field] !== undefined) {
+        const val = field === 'deadZonePercent'
+          ? (defaultThresholds[field] * 100).toFixed(1)
+          : defaultThresholds[field];
+        input.value = val;
+        if (display) display.textContent = val;
+      }
+    });
+    alert('Configuración restablecida a valores predeterminados');
+    document.getElementById('settingsPanel').style.display = 'none';
+    auraAPI.send('resize-window', 900, 700);
   });
 
   // Cleanup on window unload
   window.addEventListener('beforeunload', () => {
     console.log('🧹 Window unloading, cleaning up...');
+    if (predictor && predictor.userDictionary.length > 0) {
+      auraAPI.send('save-learnings', predictor.getLearnings());
+    }
     window.cleanupAura();
   });
 

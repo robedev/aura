@@ -361,8 +361,15 @@ ipcMain.on('reset-profile-settings', (event) => {
     faceTracker.resetSession();
   }
 
-  event.sender.send('settings-saved');
+  event.sender.send('settings-reset');
   console.log('Profile settings reset to defaults');
+});
+
+ipcMain.on('save-learnings', (event, learnings) => {
+  if (learnings && profileManager.currentProfile) {
+    profileManager.currentProfile.learnings = learnings;
+    profileManager.save();
+  }
 });
 
 // Adaptive learning updates

@@ -1,6 +1,6 @@
 {
   "name": "aura",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Control de mouse y teclado mediante gestos faciales",
   "main": "app/main/main.js",
   "homepage": "https://github.com/robedev/aura",

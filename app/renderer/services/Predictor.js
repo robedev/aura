@@ -51,13 +51,38 @@ class PredictionEngine {
     node.word = word;
   }
 
+  getLearnings() {
+    return { words: this.userDictionary, bigrams: this.bigrams };
+  }
+
+  loadLearnings(learnings) {
+    if (!learnings) return;
+    if (Array.isArray(learnings.words)) {
+      learnings.words.forEach(word => {
+        if (!this.dictionary.includes(word) && !this.userDictionary.includes(word)) {
+          this.addWordToTrie(word);
+          this.userDictionary.push(word);
+        }
+      });
+    }
+    if (learnings.bigrams && typeof learnings.bigrams === 'object') {
+      Object.entries(learnings.bigrams).forEach(([w1, nexts]) => {
+        if (!this.bigrams[w1]) this.bigrams[w1] = {};
+        Object.entries(nexts).forEach(([w2, freq]) => {
+          this.bigrams[w1][w2] = (this.bigrams[w1][w2] || 0) + freq;
+        });
+      });
+    }
+    console.log(`🧠 PredictionEngine: Aprendizajes restaurados (${this.userDictionary.length} palabras)`);
+  }
+
   // Aprender nueva palabra del usuario
   learn(text) {
     if (!text || typeof text !== 'string') return;
-    
+
     // Limpiar y dividir en palabras
     const words = text.toLowerCase().trim().split(/\s+/);
-    
+
     // 1. Aprender palabras individuales nuevas
     words.forEach(word => {
       // Solo aprender si tiene caracteres válidos y long > 1
@@ -65,7 +90,6 @@ class PredictionEngine {
         if (!this.dictionary.includes(word) && !this.userDictionary.includes(word)) {
           this.addWordToTrie(word);
           this.userDictionary.push(word);
-          // TODO: Persistir userDictionary
         }
       }
     });

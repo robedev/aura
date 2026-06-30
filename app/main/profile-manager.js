@@ -22,6 +22,7 @@ class ProfileManager {
                     ...this.currentProfile.adaptive
                 };
                 this.currentProfile.calibration.adaptationHistory = this.currentProfile.calibration.adaptationHistory || [];
+                this.currentProfile.learnings = this.currentProfile.learnings || { words: [], bigrams: {} };
                 console.log('Profile loaded:', this.currentProfile.name);
             } else {
                 console.warn('Profile file not found, creating default.');
@@ -106,7 +107,11 @@ class ProfileManager {
             calibration: {
                 neutralPose: null,
                 lastCalibrated: null,
-                adaptationHistory: []      // historial para aprendizaje
+                adaptationHistory: []
+            },
+            learnings: {
+                words: [],
+                bigrams: {}
             }
         };
     }

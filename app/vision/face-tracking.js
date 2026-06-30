@@ -58,8 +58,11 @@ class FaceTracker {
     this.adaptiveSensitivity = 3.0;
     this.emergencyStart = null;
 
-    this.neutralPose = null; // Store neutral pose for calibration
+    this.neutralPose = null;
     this.calibrating = false;
+    // Período de gracia al inicio: el gesto compuesto de pausa no se evalúa
+    // durante los primeros 5 segundos para evitar falsos positivos en el arranque
+    this.startupGraceEnd = Date.now() + 5000;
 
     // Trackers for sustained and compound gestures
     this.sustainedStates = {
@@ -236,7 +239,9 @@ class FaceTracker {
     }
 
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-      // No face, go to inactive
+      // Sin cara: resetear temporizador del gesto compuesto para evitar
+      // que el contador persista entre pérdidas y recuperaciones de cara
+      this.pauseStart = null;
       this.setState('inactive');
       return;
     }
@@ -404,6 +409,14 @@ class FaceTracker {
         break;
     }
 
+    // Gesto compuesto de emergencia: pausa directa sin pasar por el motor de reglas
+    if (gestures.pauseCompound) {
+      console.log('🚨 Gesto de pausa de emergencia detectado');
+      this.pauseStart = null; // Resetear para no repetir
+      window.auraAPI.send('pause');
+      return;
+    }
+
     // Send gesture data to main for rules engine
     this.lastGestures = gestures; // For debug
     window.auraAPI.send('gesture-update', gestures);
@@ -555,9 +568,12 @@ class FaceTracker {
     }
 
     // 7. Pause Compound
-    // Gesto compuesto de pausa: Mirada arriba + ceja levantada + boca cerrada (1s)
-    // Requiere ambas cejas levantadas (no solo una) y 2s sostenido para evitar activación accidental
-    if (gestures.gazeUp && gestures.eyebrowRaiseLeft && gestures.eyebrowRaiseRight && !gestures.mouthOpen) {
+    // Gesto de emergencia: mirada arriba + AMBAS cejas levantadas + boca cerrada, 2s sostenido.
+    // Guards: no evaluar durante período de gracia inicial ni durante calibración.
+    const pastGracePeriod = now > this.startupGraceEnd;
+    const notCalibrating = !this.calibrationData.isCalibrating && !this.calibrating;
+    if (pastGracePeriod && notCalibrating &&
+        gestures.gazeUp && gestures.eyebrowRaiseLeft && gestures.eyebrowRaiseRight && !gestures.mouthOpen) {
       if (!this.pauseStart) this.pauseStart = now;
       if (now - this.pauseStart > 2000) gestures.pauseCompound = true;
     } else {

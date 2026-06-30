@@ -99,6 +99,8 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.1s, background 0.2s;
+  position: relative;
+  overflow: hidden;
 }
 
 .key-btn.special {
