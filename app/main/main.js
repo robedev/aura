@@ -3,6 +3,9 @@ const path = require('path');
 const RuleEngine = require('./rules-engine.js');
 const ProfileManager = require('./profile-manager.js');
 const osController = require('./os-controller.js');
+const AIService = require('./ai-service.js');
+
+const aiService = new AIService();
 
 const profileManager = new ProfileManager(path.join(__dirname, '../profiles/default.json'));
 const profile = profileManager.load();
@@ -11,73 +14,64 @@ const ruleEngine = new RuleEngine();
 // Initialize FaceTracker with profile thresholds
 let faceTracker = null;
 
-// Load saved rules into engine
-profile.rules.forEach(r => {
-  const condition = { [r.gesture]: true };
-  let action;
+// Traduce una regla del perfil (JSON) a la acción interna del engine.
+// Solo 'type' y 'read-text' llevan parámetro embebido; el resto es identidad.
+function translateRuleAction(r) {
   switch (r.action) {
-    case 'click':
-      action = 'click';
-      break;
-    case 'right-click':
-      action = 'right-click';
-      break;
-    case 'middle-click':
-      action = 'middle-click';
-      break;
-    case 'scroll-up':
-      action = 'scroll-up';
-      break;
-    case 'scroll-down':
-      action = 'scroll-down';
-      break;
     case 'type':
-      action = `type-${r.param}`;
-      break;
-    case 'copy':
-      action = 'copy';
-      break;
-    case 'paste':
-      action = 'paste';
-      break;
-    case 'cut':
-      action = 'cut';
-      break;
-    case 'select-all':
-      action = 'select-all';
-      break;
-    case 'undo':
-      action = 'undo';
-      break;
-    case 'save-file':
-      action = 'save-file';
-      break;
-    case 'volume-up':
-      action = 'volume-up';
-      break;
-    case 'volume-down':
-      action = 'volume-down';
-      break;
-    case 'minimize-window':
-      action = 'minimize-window';
-      break;
-    case 'maximize-window':
-      action = 'maximize-window';
-      break;
-    case 'close-window':
-      action = 'close-window';
-      break;
+      return `type-${r.param}`;
     case 'read-text':
-      action = `read-text-${r.param}`;
-      break;
+      return `read-text-${r.param}`;
     default:
-      action = r.action;
+      return r.action;
   }
-  ruleEngine.addRule(condition, action);
-});
+}
+
+// Carga una regla del perfil en el engine, propagando priority y anyOf (OR)
+function loadRuleIntoEngine(r) {
+  const condition = { [r.gesture]: true };
+  ruleEngine.addRule(condition, translateRuleAction(r), {
+    priority: r.priority,
+    anyOf: r.anyOf
+  });
+}
+
+// Load saved rules into engine
+profile.rules.forEach(loadRuleIntoEngine);
 
 // Cooldown for rule execution (to prevent double clicks/types)
 let lastExecutionTime = 0;
+
+// TTS proactivo (N5): anuncios de voz de eventos importantes.
+// Lista blanca de mensajes — el renderer solo envía la clave del evento,
+// nunca texto libre hacia espeak/festival.
+const TTS_MESSAGES = {
+  'calibration-complete': 'Calibración lista',
+  'fatigue': 'Descansemos un momento',
+  'paused': 'Sistema pausado',
+  'resumed': 'Sistema activo',
+  'camera-error': 'Cámara no disponible',
+  'action': 'Acción ejecutada'
+};
+
+function announceTTS(key) {
+  const tts = profileManager.currentProfile?.ttsAnnouncements;
+  if (!tts || !tts.enabled) return;
+  if (key === 'fatigue' && !tts.fatigue) return;
+  if (key === 'action' && !tts.actions) return;
+
+  const message = TTS_MESSAGES[key];
+  if (message) {
+    osController.readText(message);
+    console.log(`🔊 TTS: "${message}"`);
+  }
+}
+
+ipcMain.on('tts-announce', (event, key) => announceTTS(key));
+
+// Anti-spam del anuncio de fatiga: como máximo una vez cada 5 minutos
+let lastFatigueAnnounce = 0;
+const FATIGUE_ANNOUNCE_COOLDOWN = 5 * 60 * 1000;
 
 // Macros system (Simplified)
 const macros = {
@@ -218,6 +212,9 @@ ipcMain.on('gesture-update', (event, gestures) => {
     if (mainWindow) {
       mainWindow.webContents.send('action-executed', `Gesto detectado: ${action}`);
     }
+
+    // Anuncio de acción ejecutada (N5, desactivado por defecto)
+    announceTTS('action');
   }
 });
 
@@ -233,31 +230,7 @@ ipcMain.on('add-rule', (event, rule) => {
     return;
   }
 
-  const condition = { [rule.gesture]: true };
-  let action;
-  switch (rule.action) {
-    case 'click':
-      action = 'click';
-      break;
-    case 'type':
-      action = `type-${rule.param}`;
-      break;
-    case 'volume-up':
-      action = 'volume-up';
-      break;
-    case 'volume-down':
-      action = 'volume-down';
-      break;
-    case 'undo':
-      action = 'undo';
-      break;
-    case 'read-text':
-      action = `read-text-${rule.param}`;
-      break;
-    default:
-      action = rule.action;
-  }
-  ruleEngine.addRule(condition, action);
+  loadRuleIntoEngine(rule);
   profileManager.addRule(rule);
   console.log('Rule added and persisted:', rule);
 
@@ -273,33 +246,7 @@ ipcMain.on('remove-rule', (event, index) => {
   profileManager.removeRule(index);
 
   // Reload all rules into engine
-  profileManager.currentProfile.rules.forEach(r => {
-    const condition = { [r.gesture]: true };
-    let action;
-    switch (r.action) {
-      case 'click':
-        action = 'click';
-        break;
-      case 'type':
-        action = `type-${r.param}`;
-        break;
-      case 'volume-up':
-        action = 'volume-up';
-        break;
-      case 'volume-down':
-        action = 'volume-down';
-        break;
-      case 'undo':
-        action = 'undo';
-        break;
-      case 'read-text':
-        action = `read-text-${r.param}`;
-        break;
-      default:
-        action = r.action;
-    }
-    ruleEngine.addRule(condition, action);
-  });
+  profileManager.currentProfile.rules.forEach(loadRuleIntoEngine);
 
   console.log('Rule removed and engine updated');
 
@@ -312,11 +259,13 @@ ipcMain.on('remove-rule', (event, index) => {
 ipcMain.on('calibrate-save', (event, pose) => {
   profileManager.updateCalibration(pose);
   console.log('Calibration persisted');
+  announceTTS('calibration-complete');
 });
 
 ipcMain.on('save-calibrated-thresholds', (event, thresholds) => {
   profileManager.updateCalibratedThresholds(thresholds);
   console.log('Calibrated thresholds persisted');
+  announceTTS('calibration-complete');
 });
 
 // Settings management
@@ -365,6 +314,24 @@ ipcMain.on('reset-profile-settings', (event) => {
   console.log('Profile settings reset to defaults');
 });
 
+// Sugerencias IA (N1): el renderer envía el texto parcial del teclado;
+// se devuelve junto al texto original para descartar respuestas obsoletas
+ipcMain.on('ai-suggest', async (event, text) => {
+  const suggestions = await aiService.suggest(text);
+  if (suggestions.length > 0 && !event.sender.isDestroyed()) {
+    event.sender.send('ai-suggestions', { text, suggestions });
+  }
+});
+
+// Onboarding (N3): marcar el tutorial como completado para no volver a mostrarlo
+ipcMain.on('onboarding-completed', () => {
+  if (profileManager.currentProfile) {
+    profileManager.currentProfile.onboardingCompleted = true;
+    profileManager.save();
+    console.log('✅ Onboarding marcado como completado');
+  }
+});
+
 ipcMain.on('save-learnings', (event, learnings) => {
   if (learnings && profileManager.currentProfile) {
     profileManager.currentProfile.learnings = learnings;
@@ -374,6 +341,13 @@ ipcMain.on('save-learnings', (event, learnings) => {
 
 // Adaptive learning updates
 ipcMain.on('adaptation-update', (event, adaptationData) => {
+  // Anuncio de fatiga (N5): nivel alto sostenido, con cooldown anti-spam
+  const fatigueLevel = adaptationData.usageStats?.fatigueLevel || 0;
+  if (fatigueLevel > 0.7 && Date.now() - lastFatigueAnnounce > FATIGUE_ANNOUNCE_COOLDOWN) {
+    lastFatigueAnnounce = Date.now();
+    announceTTS('fatigue');
+  }
+
   if (profileManager.currentProfile.calibration) {
     // Store adaptation history for learning
     profileManager.currentProfile.calibration.adaptationHistory.push({
@@ -401,6 +375,7 @@ ipcMain.on('get-platform-info', (event) => {
 // Camera error handling
 ipcMain.on('camera-error', (event, errorData) => {
   console.error('Camera error reported:', errorData);
+  announceTTS('camera-error');
 
   // Show dialog to user
   const { dialog } = require('electron');
@@ -431,7 +406,7 @@ ipcMain.on('pause', () => {
   if (mainWindow) {
     mainWindow.webContents.send('emergency-pause');
   }
-  // Additional emergency actions could be added here
+  announceTTS('paused');
 });
 
 ipcMain.on('type-text', (event, text) => osController.typeText(text));

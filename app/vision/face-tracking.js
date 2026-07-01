@@ -96,6 +96,16 @@ class FaceTracker {
       calibratedThresholds: null
     };
 
+    // Wizard de calibración de gestos (M2): mide el rango real de cada gesto
+    // del usuario para calcular umbrales personalizados
+    this.gestureCalibration = {
+      active: false,
+      step: null,
+      samples: [],
+      stepEnd: null,
+      onStepDone: null
+    };
+
     // Adaptive thresholds (will be adjusted based on user behavior)
     this.adaptiveThresholds = {
       dwellTime: this.thresholds.dwellTime,
@@ -248,6 +258,13 @@ class FaceTracker {
 
     const landmarks = results.multiFaceLandmarks[0];
     // console.log('👤 Face detected, current state:', this.state);
+
+    // Wizard de calibración de gestos activo: solo recolectar muestras,
+    // sin mover el ratón ni ejecutar acciones
+    if (this.gestureCalibration.active) {
+      this.collectCalibrationSample(landmarks);
+      return;
+    }
 
     // Automatic calibration during first few seconds (if enabled)
     if (!this.calibrationData.calibratedThresholds && !this.calibrating && this.thresholds.adaptive?.autoCalibration) {
@@ -880,6 +897,80 @@ class FaceTracker {
       // Persist calibrated thresholds
       window.auraAPI.send('save-calibrated-thresholds', this.calibrationData.calibratedThresholds);
     }
+  }
+
+  // --- Wizard de calibración de gestos (M2) ---
+
+  // Inicia un paso del wizard: recolecta mediciones faciales durante durationMs
+  // y llama a onDone con las estadísticas del paso (o null si no hubo muestras)
+  startCalibrationStep(step, durationMs, onDone) {
+    this.gestureCalibration.active = true;
+    this.gestureCalibration.step = step;
+    this.gestureCalibration.samples = [];
+    this.gestureCalibration.stepEnd = Date.now() + durationMs;
+    this.gestureCalibration.onStepDone = onDone;
+    console.log(`🧭 Calibración de gestos: paso "${step}" iniciado (${durationMs}ms)`);
+  }
+
+  cancelGestureCalibration() {
+    this.gestureCalibration.active = false;
+    this.gestureCalibration.step = null;
+    this.gestureCalibration.samples = [];
+    this.gestureCalibration.stepEnd = null;
+    this.gestureCalibration.onStepDone = null;
+    console.log('🧭 Calibración de gestos cancelada');
+  }
+
+  collectCalibrationSample(landmarks) {
+    const cal = this.gestureCalibration;
+
+    // Mismas mediciones que usa detectGestures()
+    const leftRaise = landmarks[159].y - landmarks[70].y;
+    const rightRaise = landmarks[386].y - landmarks[300].y;
+    cal.samples.push({
+      eyebrow: Math.max(leftRaise, rightRaise),
+      mouth: Math.abs(landmarks[13].y - landmarks[14].y),
+      tilt: landmarks[234].y - landmarks[454].y // >0 inclinación izquierda, <0 derecha
+    });
+
+    if (Date.now() >= cal.stepEnd) {
+      const result = this.computeStepStats(cal.samples);
+      const onDone = cal.onStepDone;
+      cal.active = false;
+      cal.step = null;
+      cal.samples = [];
+      cal.stepEnd = null;
+      cal.onStepDone = null;
+      if (onDone) onDone(result);
+    }
+  }
+
+  computeStepStats(samples) {
+    if (samples.length === 0) return null;
+
+    const avg = (key) => samples.reduce((sum, s) => sum + s[key], 0) / samples.length;
+    // Percentiles en lugar de max/min absolutos: robusto frente a outliers de MediaPipe
+    const percentile = (key, p) => {
+      const sorted = samples.map(s => s[key]).sort((a, b) => a - b);
+      const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * p)));
+      return sorted[idx];
+    };
+
+    return {
+      sampleCount: samples.length,
+      avg: { eyebrow: avg('eyebrow'), mouth: avg('mouth'), tilt: avg('tilt') },
+      max: { eyebrow: percentile('eyebrow', 0.9), mouth: percentile('mouth', 0.9), tilt: percentile('tilt', 0.9) },
+      min: { tilt: percentile('tilt', 0.1) }
+    };
+  }
+
+  // Aplica los umbrales calculados por el wizard y los persiste en el perfil
+  applyCalibratedThresholds(thresholds) {
+    this.calibrationData.calibratedThresholds = thresholds;
+    if (window.auraAPI) {
+      window.auraAPI.send('save-calibrated-thresholds', thresholds);
+    }
+    console.log('✅ Umbrales del wizard aplicados:', thresholds);
   }
 
   getCurrentThresholds() {

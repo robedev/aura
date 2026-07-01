@@ -1,6 +1,6 @@
 {
   "name": "aura",
-  "version": "0.2.4",
+  "version": "0.4.0",
   "description": "Control de mouse y teclado mediante gestos faciales",
   "main": "app/main/main.js",
   "homepage": "https://github.com/robedev/aura",
@@ -51,6 +51,7 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.109.0",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/face_mesh": "^0.4.1633559619"
   },

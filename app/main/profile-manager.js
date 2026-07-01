@@ -23,6 +23,10 @@ class ProfileManager {
                 };
                 this.currentProfile.calibration.adaptationHistory = this.currentProfile.calibration.adaptationHistory || [];
                 this.currentProfile.learnings = this.currentProfile.learnings || { words: [], bigrams: {} };
+                this.currentProfile.ttsAnnouncements = {
+                    ...this.getDefaultProfile().ttsAnnouncements,
+                    ...this.currentProfile.ttsAnnouncements
+                };
                 console.log('Profile loaded:', this.currentProfile.name);
             } else {
                 console.warn('Profile file not found, creating default.');
@@ -112,7 +116,13 @@ class ProfileManager {
             learnings: {
                 words: [],
                 bigrams: {}
-            }
+            },
+            ttsAnnouncements: {
+                enabled: true,      // anuncios de voz activados
+                fatigue: true,      // anunciar detección de fatiga
+                actions: false      // anunciar cada acción ejecutada (verboso)
+            },
+            onboardingCompleted: false
         };
     }
 }

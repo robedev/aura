@@ -4,6 +4,7 @@ console.log('🚀 Aura renderer loaded');
 try {
 
   let cleanupDone = false;
+  let faceTracker = null;
 
   // Global cleanup function
   window.cleanupAura = function () {
@@ -227,6 +228,10 @@ try {
     if (profile.learnings) {
       predictor.loadLearnings(profile.learnings);
     }
+    // Onboarding (N3): mostrar el tutorial en el primer arranque
+    if (!profile.onboardingCompleted) {
+      showOnboarding();
+    }
   });
 
   let isSystemPaused = false;
@@ -236,8 +241,9 @@ try {
     suggestions: [],
     scanRowIndex: -1,
     scanKeyIndex: -1,
+    scanSuggestionIndex: -1, // índice del chip activo cuando se escanea la barra de predicciones
     isScanningRow: true, // true = scan rows, false = scan keys in row
-    activeRow: null,
+    activeRow: null, // -1 = barra de predicciones, 0..N = fila del teclado
     scanInterval: null
   };
 
@@ -377,6 +383,9 @@ try {
                predictor.learn(phrase);
              };
           }
+          const dwellBar = document.createElement('div');
+          dwellBar.className = 'dwell-indicator';
+          btn.appendChild(dwellBar);
           rowDiv.appendChild(btn);
         });
         grid.appendChild(rowDiv);
@@ -421,17 +430,24 @@ try {
     container.appendChild(grid);
   }
 
+  function createSuggestionChip(word, isAI = false) {
+    const chip = document.createElement('div');
+    chip.className = isAI ? 'suggestion-chip ai' : 'suggestion-chip';
+    chip.textContent = isAI ? `✨ ${word}` : word;
+    chip.onclick = () => handlePredictionSelect(word);
+    const dwellBar = document.createElement('div');
+    dwellBar.className = 'dwell-indicator';
+    chip.appendChild(dwellBar);
+    return chip;
+  }
+
   function updatePredictionsUI(suggestions) {
     const bar = document.getElementById('predictionBar');
     if (!bar) return;
     bar.innerHTML = '';
 
     suggestions.forEach(word => {
-      const chip = document.createElement('div');
-      chip.className = 'suggestion-chip';
-      chip.textContent = word;
-      chip.onclick = () => handlePredictionSelect(word);
-      bar.appendChild(chip);
+      bar.appendChild(createSuggestionChip(word));
     });
   }
 
@@ -479,7 +495,41 @@ try {
 
     smartKeyboardState.suggestions = suggestions;
     updatePredictionsUI(suggestions);
+
+    // Sugerencias IA (N1): pedir refuerzo cuando el predictor local se queda corto
+    maybeRequestAISuggestions(suggestions);
   }
+
+  // --- Sugerencias IA (N1) ---
+  let aiDebounceTimer = null;
+
+  function maybeRequestAISuggestions(localSuggestions) {
+    const text = smartKeyboardState.currentInput;
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    // Solo con 3+ palabras de contexto y menos de 3 sugerencias locales
+    if (localSuggestions.length >= 3 || wordCount < 3) return;
+
+    clearTimeout(aiDebounceTimer);
+    aiDebounceTimer = setTimeout(() => {
+      auraAPI.send('ai-suggest', smartKeyboardState.currentInput);
+    }, 600); // debounce: esperar a que el usuario deje de escribir
+  }
+
+  auraAPI.on('ai-suggestions', (event, data) => {
+    if (!data || !Array.isArray(data.suggestions) || data.suggestions.length === 0) return;
+    // Descartar respuestas obsoletas: el usuario siguió escribiendo
+    if (data.text !== smartKeyboardState.currentInput) return;
+
+    const bar = document.getElementById('predictionBar');
+    if (!bar) return;
+
+    data.suggestions.forEach(word => {
+      bar.appendChild(createSuggestionChip(word, true));
+    });
+
+    // Incluir en el estado para que el escaneo también recorra los chips IA
+    smartKeyboardState.suggestions = smartKeyboardState.suggestions.concat(data.suggestions);
+  });
 
   function handlePredictionSelect(word) {
     const inputs = smartKeyboardState.currentInput.trim().split(' ');
@@ -509,11 +559,16 @@ try {
     if (smartKeyboardState.scanInterval) clearInterval(smartKeyboardState.scanInterval);
 
     smartKeyboardState.isScanningRow = true;
-    smartKeyboardState.scanRowIndex = -1;
+    smartKeyboardState.scanRowIndex = -2; // el primer paso avanza a -1 (barra de predicciones)
     smartKeyboardState.scanKeyIndex = -1;
+    smartKeyboardState.scanSuggestionIndex = -1;
 
-    // Start loop
-    smartKeyboardState.scanInterval = setInterval(smartScanStep, 1000); // 1.2s configurable
+    // Período de escaneo sincronizado con el dwellTime del perfil;
+    // la variable CSS anima el .dwell-indicator a la misma velocidad
+    const scanPeriod = currentSettings?.thresholds?.dwellTime || 1000;
+    document.documentElement.style.setProperty('--dwell-duration', `${scanPeriod}ms`);
+
+    smartKeyboardState.scanInterval = setInterval(smartScanStep, scanPeriod);
   }
 
   function smartScanStep() {
@@ -522,18 +577,41 @@ try {
     if (smartKeyboardState.isScanningRow) {
       // Scan Rows + Prediction Bar (Index -1)
       smartKeyboardState.scanRowIndex++;
-      const totalRows = KEYBOARD_LAYOUT.length;
+      // Contar filas desde el DOM: el modo frases tiene distinto número de filas
+      const totalRows = document.querySelectorAll('#keyboardGrid .keyboard-row').length;
 
       // -1 = Prediction Bar, 0..N = Rows
       if (smartKeyboardState.scanRowIndex >= totalRows) {
         smartKeyboardState.scanRowIndex = -1; // Loop back to predictions
       }
 
+      // Saltar la barra de predicciones si no hay sugerencias que seleccionar
+      if (smartKeyboardState.scanRowIndex === -1 && smartKeyboardState.suggestions.length === 0) {
+        smartKeyboardState.scanRowIndex = 0;
+      }
+
       highlightRow(smartKeyboardState.scanRowIndex);
+
+    } else if (smartKeyboardState.activeRow === -1) {
+      // Scan de chips dentro de la barra de predicciones
+      const chips = document.querySelectorAll('#predictionBar .suggestion-chip');
+      if (chips.length === 0) {
+        // Las sugerencias desaparecieron: volver al escaneo de filas
+        smartKeyboardState.isScanningRow = true;
+        smartKeyboardState.scanRowIndex = -1;
+        return;
+      }
+      smartKeyboardState.scanSuggestionIndex = (smartKeyboardState.scanSuggestionIndex + 1) % chips.length;
+      highlightKey(chips[smartKeyboardState.scanSuggestionIndex]);
 
     } else {
       // Scan Keys in current Row
       const rowKeys = document.querySelectorAll(`#row-${smartKeyboardState.activeRow} .key-btn`);
+      if (rowKeys.length === 0) {
+        smartKeyboardState.isScanningRow = true;
+        smartKeyboardState.scanRowIndex = -1;
+        return;
+      }
       smartKeyboardState.scanKeyIndex = (smartKeyboardState.scanKeyIndex + 1) % rowKeys.length;
 
       highlightKey(rowKeys[smartKeyboardState.scanKeyIndex]);
@@ -542,6 +620,8 @@ try {
 
   function stopSmartScanning() {
     if (smartKeyboardState.scanInterval) clearInterval(smartKeyboardState.scanInterval);
+    smartKeyboardState.scanInterval = null;
+    smartKeyboardState.scanSuggestionIndex = -1;
     clearHighlights();
   }
 
@@ -564,35 +644,44 @@ try {
     document.getElementById('predictionBar')?.classList.remove('active');
   }
 
-  // Handle Selection (Blink)
+  // Handle Selection (activación por gesto)
   function handleSmartSelect() {
     if (!scanMode) return;
 
     if (smartKeyboardState.isScanningRow) {
       // Row Selected -> Switch to Column Scan
       if (smartKeyboardState.scanRowIndex === -1) {
-        // Selected Prediction Bar -> Scan predictions next? 
-        // For simplicity v1: Select first prediction or rotate?
-        // Let's implement simpler: Select first prediction if bar is active
+        // Barra de predicciones seleccionada -> escanear los chips individuales
         if (smartKeyboardState.suggestions.length > 0) {
-          handlePredictionSelect(smartKeyboardState.suggestions[0]);
+          smartKeyboardState.isScanningRow = false;
+          smartKeyboardState.activeRow = -1;
+          smartKeyboardState.scanSuggestionIndex = -1;
         }
       } else {
         smartKeyboardState.isScanningRow = false;
         smartKeyboardState.activeRow = smartKeyboardState.scanRowIndex;
         smartKeyboardState.scanKeyIndex = -1; // Reset key index
-        // Speed up scan for keys?
       }
+    } else if (smartKeyboardState.activeRow === -1) {
+      // Chip de predicción seleccionado -> insertarlo y reiniciar ciclo
+      const chips = document.querySelectorAll('#predictionBar .suggestion-chip');
+      const chip = chips[smartKeyboardState.scanSuggestionIndex];
+      if (chip) chip.click();
+
+      smartKeyboardState.isScanningRow = true;
+      smartKeyboardState.scanRowIndex = -2; // reiniciar desde la barra de predicciones
+      smartKeyboardState.scanSuggestionIndex = -1;
     } else {
       // Key Selected -> Type it and return to Row Scan
       const rowKeys = document.querySelectorAll(`#row-${smartKeyboardState.activeRow} .key-btn`);
       const btn = rowKeys[smartKeyboardState.scanKeyIndex];
       if (btn) btn.click();
 
-      // Reset to Row Scan after typing a key (Efficiency choice: stay in row or go back?)
-      // User Pref: Usually go back to Row Grid for next char
+      // Volver al escaneo de filas empezando por la barra de predicciones,
+      // que ahora muestra sugerencias actualizadas para lo recién escrito
       smartKeyboardState.isScanningRow = true;
-      smartKeyboardState.scanRowIndex = -1;
+      smartKeyboardState.scanRowIndex = -2;
+      smartKeyboardState.scanKeyIndex = -1;
     }
   }
 
@@ -645,6 +734,354 @@ try {
     }, 5000);
   };
 
+  // --- Wizard de calibración de gestos (M2) ---
+  const WIZARD_STEPS = [
+    { id: 'neutral', title: 'Paso 1 de 5 · Expresión neutral', instruction: 'Mantén tu rostro relajado, con expresión neutral, mirando a la cámara.' },
+    { id: 'eyebrow', title: 'Paso 2 de 5 · Cejas', instruction: 'Levanta las cejas todo lo que puedas y mantenlas arriba.' },
+    { id: 'mouth', title: 'Paso 3 de 5 · Boca', instruction: 'Abre la boca ampliamente y mantenla abierta.' },
+    { id: 'tiltLeft', title: 'Paso 4 de 5 · Cabeza a la izquierda', instruction: 'Inclina la cabeza hacia tu hombro izquierdo y mantén la posición.' },
+    { id: 'tiltRight', title: 'Paso 5 de 5 · Cabeza a la derecha', instruction: 'Inclina la cabeza hacia tu hombro derecho y mantén la posición.' }
+  ];
+  const WIZARD_STEP_DURATION = 3000;
+  const WIZARD_PREP_SECONDS = 2;
+  let wizardResults = {};
+  let wizardPhase = 'intro'; // 'intro' | 'running' | 'summary'
+  let wizardProposedThresholds = null;
+  let wizardTimers = [];
+
+  function clearWizardTimers() {
+    wizardTimers.forEach(id => {
+      clearInterval(id);
+      clearTimeout(id);
+    });
+    wizardTimers = [];
+  }
+
+  function openCalibrationWizard() {
+    if (!faceTracker) {
+      alert('El seguimiento facial no está activo. Inicia la cámara antes de calibrar.');
+      return;
+    }
+    wizardPhase = 'intro';
+    wizardResults = {};
+    wizardProposedThresholds = null;
+    document.getElementById('wizardTitle').textContent = '🧭 Calibración de Gestos';
+    document.getElementById('wizardInstruction').textContent =
+      'Este asistente medirá el rango de tus gestos para calcular umbrales personalizados. Son 5 pasos de 3 segundos cada uno.';
+    document.getElementById('wizardProgress').textContent = '';
+    const startBtn = document.getElementById('wizardStart');
+    startBtn.textContent = 'COMENZAR';
+    startBtn.style.display = '';
+    document.getElementById('calibrationWizard').style.display = 'flex';
+  }
+
+  function closeCalibrationWizard() {
+    clearWizardTimers();
+    if (faceTracker) faceTracker.cancelGestureCalibration();
+    document.getElementById('calibrationWizard').style.display = 'none';
+  }
+
+  function runWizardStep(index) {
+    if (index >= WIZARD_STEPS.length) {
+      finishWizard();
+      return;
+    }
+    const step = WIZARD_STEPS[index];
+    const progress = document.getElementById('wizardProgress');
+    document.getElementById('wizardTitle').textContent = step.title;
+    document.getElementById('wizardInstruction').textContent = step.instruction;
+    document.getElementById('wizardStart').style.display = 'none';
+
+    // Cuenta atrás de preparación antes de medir
+    let prepLeft = WIZARD_PREP_SECONDS;
+    progress.textContent = `Prepárate... ${prepLeft}`;
+    const prepInterval = setInterval(() => {
+      prepLeft--;
+      if (prepLeft > 0) {
+        progress.textContent = `Prepárate... ${prepLeft}`;
+        return;
+      }
+      clearInterval(prepInterval);
+
+      // Fase de medición: FaceTracker recolecta muestras faciales
+      let measureLeft = WIZARD_STEP_DURATION / 1000;
+      progress.textContent = `Midiendo... ${measureLeft}`;
+      const measureInterval = setInterval(() => {
+        measureLeft--;
+        if (measureLeft > 0) progress.textContent = `Midiendo... ${measureLeft}`;
+      }, 1000);
+      wizardTimers.push(measureInterval);
+
+      faceTracker.startCalibrationStep(step.id, WIZARD_STEP_DURATION, (result) => {
+        clearInterval(measureInterval);
+        if (!result) {
+          progress.textContent = '⚠️ No se detectó tu rostro. Repitiendo paso...';
+          wizardTimers.push(setTimeout(() => runWizardStep(index), 1500));
+          return;
+        }
+        wizardResults[step.id] = result;
+        progress.textContent = '✅';
+        wizardTimers.push(setTimeout(() => runWizardStep(index + 1), 800));
+      });
+    }, 1000);
+    wizardTimers.push(prepInterval);
+  }
+
+  function finishWizard() {
+    const baseline = wizardResults.neutral;
+    const current = faceTracker.getCurrentThresholds();
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    // Umbral = baseline + 60% del rango detectado. Si un gesto no superó su
+    // baseline (no se realizó), se conserva el umbral actual para ese gesto.
+    const proposed = {
+      eyebrowThreshold: current.eyebrowThreshold,
+      mouthThreshold: current.mouthThreshold,
+      headTiltThreshold: current.headTiltThreshold
+    };
+
+    if (baseline) {
+      if (wizardResults.eyebrow && wizardResults.eyebrow.max.eyebrow > baseline.avg.eyebrow) {
+        proposed.eyebrowThreshold = clamp(
+          baseline.avg.eyebrow + 0.6 * (wizardResults.eyebrow.max.eyebrow - baseline.avg.eyebrow),
+          0.08, 0.25
+        );
+      }
+      if (wizardResults.mouth && wizardResults.mouth.max.mouth > baseline.avg.mouth) {
+        proposed.mouthThreshold = clamp(
+          baseline.avg.mouth + 0.6 * (wizardResults.mouth.max.mouth - baseline.avg.mouth),
+          0.05, 0.15
+        );
+      }
+      // La detección compara earYDiff contra el umbral en valor absoluto:
+      // usar el mayor rango de ambos lados para un umbral simétrico
+      const tiltLeftRange = wizardResults.tiltLeft ? Math.abs(wizardResults.tiltLeft.max.tilt) : 0;
+      const tiltRightRange = wizardResults.tiltRight ? Math.abs(wizardResults.tiltRight.min.tilt) : 0;
+      const tiltRange = Math.max(tiltLeftRange, tiltRightRange);
+      if (tiltRange > 0) {
+        proposed.headTiltThreshold = clamp(0.6 * tiltRange, 0.02, 0.2);
+      }
+    }
+
+    wizardProposedThresholds = proposed;
+    wizardPhase = 'summary';
+
+    document.getElementById('wizardTitle').textContent = '✅ Calibración completada';
+    document.getElementById('wizardInstruction').innerHTML =
+      'Umbrales calculados para ti:<br>' +
+      `Cejas: <b>${proposed.eyebrowThreshold.toFixed(3)}</b> · ` +
+      `Boca: <b>${proposed.mouthThreshold.toFixed(3)}</b> · ` +
+      `Inclinación: <b>${proposed.headTiltThreshold.toFixed(3)}</b>`;
+    document.getElementById('wizardProgress').textContent = '';
+    const startBtn = document.getElementById('wizardStart');
+    startBtn.textContent = '💾 GUARDAR';
+    startBtn.style.display = '';
+  }
+
+  document.getElementById('calibrateGestures').onclick = openCalibrationWizard;
+
+  document.getElementById('wizardStart').onclick = () => {
+    if (wizardPhase === 'intro') {
+      wizardPhase = 'running';
+      runWizardStep(0);
+    } else if (wizardPhase === 'summary' && wizardProposedThresholds) {
+      faceTracker.applyCalibratedThresholds(wizardProposedThresholds);
+      closeCalibrationWizard();
+      alert('Umbrales calibrados guardados correctamente');
+    }
+  };
+
+  document.getElementById('wizardCancel').onclick = closeCalibrationWizard;
+
+  // --- Onboarding wizard (N3): tutorial guiado de primer arranque ---
+  const ONBOARDING_GESTURES = [
+    { id: 'eyebrowRaise', label: 'Levanta las cejas' },
+    { id: 'mouthOpen', label: 'Abre la boca' },
+    { id: 'headTiltLeft', label: 'Inclina la cabeza a la izquierda' },
+    { id: 'headTiltRight', label: 'Inclina la cabeza a la derecha' }
+  ];
+
+  // Acciones propuestas en el paso 5, en orden de utilidad. El click izquierdo
+  // ya es nativo (mouthOpen en la máquina de estados), por eso no se propone.
+  const ONBOARDING_RULE_ACTIONS = [
+    { action: 'right-click', label: 'Click derecho' },
+    { action: 'scroll-down', label: 'Scroll abajo' },
+    { action: 'scroll-up', label: 'Scroll arriba' }
+  ];
+
+  // Variantes sostenidas para las reglas: menos falsos positivos en uso real
+  const ONBOARDING_GESTURE_FOR_RULE = {
+    eyebrowRaise: 'eyebrowRaise',
+    headTiltLeft: 'headTiltLeftSustained',
+    headTiltRight: 'headTiltRightSustained'
+  };
+
+  let onboardingStep = 0;
+  let onboardingGestureOrder = []; // orden en que el usuario logró cada gesto (comodidad)
+  let onboardingPollInterval = null;
+  let onboardingCountdownInterval = null;
+
+  function clearOnboardingTimers() {
+    if (onboardingPollInterval) clearInterval(onboardingPollInterval);
+    if (onboardingCountdownInterval) clearInterval(onboardingCountdownInterval);
+    onboardingPollInterval = null;
+    onboardingCountdownInterval = null;
+  }
+
+  function renderOnboardingDots() {
+    const dots = document.getElementById('onboardingSteps');
+    dots.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'onboarding-step-dot' + (i === onboardingStep ? ' active' : '');
+      dots.appendChild(dot);
+    }
+  }
+
+  function showOnboarding() {
+    onboardingStep = 0;
+    onboardingGestureOrder = [];
+    document.getElementById('onboardingOverlay').style.display = 'flex';
+    renderOnboardingStep();
+  }
+
+  function finishOnboarding() {
+    clearOnboardingTimers();
+    document.getElementById('onboardingOverlay').style.display = 'none';
+    auraAPI.send('onboarding-completed');
+  }
+
+  function renderOnboardingStep() {
+    clearOnboardingTimers();
+    renderOnboardingDots();
+    const title = document.getElementById('onboardingTitle');
+    const body = document.getElementById('onboardingBody');
+    const nextBtn = document.getElementById('onboardingNext');
+    nextBtn.style.display = '';
+    nextBtn.textContent = 'SIGUIENTE →';
+
+    switch (onboardingStep) {
+      case 0: // Bienvenida
+        title.textContent = '👋 Bienvenido a Aura';
+        body.innerHTML =
+          '<p>Aura te permite controlar el ordenador con <b>gestos faciales</b>: ' +
+          'mueve el cursor con la cabeza, haz click abriendo la boca y ejecuta ' +
+          'acciones con las cejas o inclinando la cabeza.</p>' +
+          '<p>Este tutorial te guiará en <b>4 pasos</b> para dejarlo todo configurado.</p>';
+        break;
+
+      case 1: // Posición de cámara con detección en vivo
+        title.textContent = '📹 Posición de la cámara';
+        body.innerHTML =
+          '<p>Colócate frente a la cámara con el rostro centrado en el encuadre ' +
+          'y buena iluminación frontal.</p>' +
+          '<p id="onboardingFaceStatus" style="font-weight: bold;">Buscando tu rostro...</p>';
+        onboardingPollInterval = setInterval(() => {
+          const status = document.getElementById('onboardingFaceStatus');
+          if (!status) return;
+          if (faceTracker && faceTracker.state !== 'inactive') {
+            status.textContent = '✅ Rostro detectado correctamente';
+            status.style.color = '#00ffcc';
+          } else {
+            status.textContent = '🔍 Buscando tu rostro...';
+            status.style.color = '#ffaa00';
+          }
+        }, 300);
+        break;
+
+      case 2: // Calibración de posición neutral
+        title.textContent = '🎯 Calibración de posición neutral';
+        body.innerHTML =
+          '<p>Mira al centro de la pantalla con la cabeza en tu posición ' +
+          'natural de descanso y mantenla durante la cuenta atrás.</p>' +
+          '<div class="onboarding-countdown" id="onboardingCountdown">3</div>';
+        nextBtn.style.display = 'none';
+        auraAPI.send('calibrate');
+        let countdown = 3;
+        onboardingCountdownInterval = setInterval(() => {
+          countdown--;
+          const el = document.getElementById('onboardingCountdown');
+          if (!el) return;
+          if (countdown > 0) {
+            el.textContent = countdown;
+          } else {
+            clearInterval(onboardingCountdownInterval);
+            el.textContent = '✅';
+            setTimeout(() => { onboardingStep++; renderOnboardingStep(); }, 800);
+          }
+        }, 1000);
+        break;
+
+      case 3: // Prueba de gestos con feedback en vivo
+        title.textContent = '🎭 Prueba tus gestos';
+        body.innerHTML =
+          '<p>Realiza cada gesto de la lista. Se marcarán al detectarse:</p>' +
+          '<ul class="gesture-checklist" id="gestureChecklist">' +
+          ONBOARDING_GESTURES.map(g =>
+            `<li id="onb-gesture-${g.id}">⬜ ${g.label}</li>`
+          ).join('') +
+          '</ul>';
+        onboardingPollInterval = setInterval(() => {
+          if (!faceTracker || !faceTracker.lastGestures) return;
+          ONBOARDING_GESTURES.forEach(g => {
+            if (faceTracker.lastGestures[g.id] && !onboardingGestureOrder.includes(g.id)) {
+              onboardingGestureOrder.push(g.id);
+              const li = document.getElementById(`onb-gesture-${g.id}`);
+              if (li) {
+                li.textContent = `✅ ${g.label}`;
+                li.classList.add('done');
+              }
+            }
+          });
+        }, 200);
+        break;
+
+      case 4: { // Reglas iniciales según los gestos más cómodos
+        title.textContent = '⚡ Reglas recomendadas';
+        // Ranking de comodidad: orden en que logró cada gesto (sin mouthOpen,
+        // que ya es el click nativo). Fallback si no probó ninguno.
+        const ranked = onboardingGestureOrder.filter(g => g !== 'mouthOpen');
+        if (ranked.length === 0) ranked.push('eyebrowRaise', 'headTiltLeft', 'headTiltRight');
+
+        const proposedRules = ranked.slice(0, 3).map((gestureId, i) => ({
+          gesture: ONBOARDING_GESTURE_FOR_RULE[gestureId] || gestureId,
+          gestureLabel: gestureTranslations[ONBOARDING_GESTURE_FOR_RULE[gestureId] || gestureId] || gestureId,
+          ...ONBOARDING_RULE_ACTIONS[i]
+        }));
+
+        body.innerHTML =
+          '<p>Según los gestos que te resultaron más cómodos, te proponemos estas reglas:</p>' +
+          '<ul class="proposed-rules">' +
+          proposedRules.map(r => `<li>${r.gestureLabel} → <b>${r.label}</b></li>`).join('') +
+          '</ul>' +
+          '<p style="font-size: 0.85rem; opacity: 0.7;">Podrás modificarlas en cualquier momento desde el panel de reglas.</p>';
+
+        nextBtn.textContent = '✅ APLICAR Y TERMINAR';
+        nextBtn.onclick = () => {
+          proposedRules.forEach(r => {
+            auraAPI.send('add-rule', { gesture: r.gesture, action: r.action, param: '', priority: 0 });
+          });
+          finishOnboarding();
+          // Restaurar el handler estándar del botón
+          nextBtn.onclick = onboardingNextHandler;
+        };
+        break;
+      }
+    }
+  }
+
+  function onboardingNextHandler() {
+    onboardingStep++;
+    if (onboardingStep > 4) {
+      finishOnboarding();
+    } else {
+      renderOnboardingStep();
+    }
+  }
+
+  document.getElementById('onboardingNext').onclick = onboardingNextHandler;
+  document.getElementById('onboardingSkip').onclick = finishOnboarding;
+
   document.getElementById('pause').onclick = () => {
     console.log('⏯️ Pause/Resume button clicked');
 
@@ -655,6 +1092,7 @@ try {
       if (video && faceTracker) {
         faceTracker.start(video);
         isSystemPaused = false;
+        auraAPI.send('tts-announce', 'resumed');
 
         // Update UI
         const pauseBtn = document.getElementById('pause');
@@ -738,10 +1176,23 @@ try {
     textInput.style.display = e.target.value === 'type' ? 'block' : 'none';
   };
 
+  // Poblar el selector de gesto alternativo (OR) con los mismos gestos del principal
+  const orSelect = document.getElementById('gestureSelectOr');
+  Array.from(document.getElementById('gestureSelect').options).forEach(opt => {
+    orSelect.add(new Option(`O: ${opt.text}`, opt.value));
+  });
+
+  // Slider de prioridad de regla
+  document.getElementById('rulePriority').oninput = (e) => {
+    document.getElementById('rulePriorityValue').textContent = e.target.value;
+  };
+
   document.getElementById('addRule').onclick = () => {
     const gesture = document.getElementById('gestureSelect').value;
     const action = document.getElementById('actionSelect').value;
     const param = action === 'type' ? document.getElementById('actionParam').value : '';
+    const orGesture = document.getElementById('gestureSelectOr').value;
+    const priority = parseInt(document.getElementById('rulePriority').value) || 0;
 
     // Validation
     if (action === 'type' && !param.trim()) {
@@ -749,13 +1200,20 @@ try {
       return;
     }
 
-    const rule = { gesture, action, param };
+    const rule = { gesture, action, param, priority };
+    // Gesto alternativo seleccionado: la regla se activa con cualquiera de los dos (OR)
+    if (orGesture && orGesture !== gesture) {
+      rule.anyOf = [gesture, orGesture];
+    }
     auraAPI.send('add-rule', rule);
 
-    // Clear input if it was shown
+    // Clear inputs
     if (action === 'type') {
       document.getElementById('actionParam').value = '';
     }
+    document.getElementById('gestureSelectOr').value = '';
+    document.getElementById('rulePriority').value = 0;
+    document.getElementById('rulePriorityValue').textContent = '0';
   };
 
   // Action descriptions for better UI
@@ -809,9 +1267,12 @@ try {
       const li = document.createElement('li');
       li.className = 'rule-item';
       const actionDesc = actionDescriptions[rule.action] || rule.action;
-      const gestureDesc = gestureTranslations[rule.gesture] || rule.gesture;
+      const gestureDesc = Array.isArray(rule.anyOf) && rule.anyOf.length > 0
+        ? rule.anyOf.map(g => gestureTranslations[g] || g).join(' Ó ')
+        : (gestureTranslations[rule.gesture] || rule.gesture);
       const paramText = rule.param ? ` "${rule.param}"` : '';
-      li.textContent = `${gestureDesc} → ${actionDesc}${paramText}`;
+      const prioText = rule.priority ? ` [P${rule.priority}]` : '';
+      li.textContent = `${gestureDesc} → ${actionDesc}${paramText}${prioText}`;
 
       // Add delete button
       const deleteBtn = document.createElement('button');

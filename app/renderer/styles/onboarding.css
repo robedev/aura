@@ -1,0 +1,113 @@
+/* Onboarding wizard (N3) — Tutorial guiado de primer arranque */
+
+.onboarding-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+  justify-content: center;
+  align-items: center;
+}
+
+.onboarding-box {
+  background: var(--glass, rgba(20, 20, 35, 0.95));
+  border: 1px solid var(--accent, #00ffcc);
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 520px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 40px var(--accent-glow, rgba(0, 255, 204, 0.3));
+}
+
+.onboarding-box h3 {
+  color: var(--accent, #00ffcc);
+  margin-top: 0;
+  font-size: 1.3rem;
+}
+
+/* Indicador de progreso: 5 puntos */
+.onboarding-steps {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.onboarding-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: background 0.3s;
+}
+
+.onboarding-step-dot.active {
+  background: var(--accent, #00ffcc);
+  box-shadow: 0 0 8px var(--accent-glow, rgba(0, 255, 204, 0.3));
+}
+
+.onboarding-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Checklist de prueba de gestos (paso 4) */
+.gesture-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  display: inline-block;
+}
+
+.gesture-checklist li {
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.3s;
+}
+
+.gesture-checklist li.done {
+  background: rgba(0, 255, 204, 0.15);
+  color: var(--accent, #00ffcc);
+}
+
+/* Lista de reglas propuestas (paso 5) */
+.proposed-rules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  display: inline-block;
+}
+
+.proposed-rules li {
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent, #00ffcc);
+  margin-bottom: 4px;
+  background: rgba(0, 255, 204, 0.08);
+}
+
+.onboarding-countdown {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--accent, #00ffcc);
+}
+
+.onboarding-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}

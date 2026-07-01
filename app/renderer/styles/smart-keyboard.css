@@ -42,12 +42,34 @@
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
 }
 
-.suggestion-chip:hover, .suggestion-chip.active {
+.suggestion-chip:hover, .suggestion-chip.active, .suggestion-chip.scanning-active {
   background: var(--accent);
   color: #000;
   box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* Highlight de la barra de predicciones completa durante el escaneo de filas */
+.prediction-bar.active {
+  outline: 1px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+
+/* Chips de sugerencias IA (N1) — diferenciados en violeta */
+.suggestion-chip.ai {
+  background: rgba(204, 136, 255, 0.1);
+  border-color: #cc88ff;
+  color: #cc88ff;
+}
+
+.suggestion-chip.ai:hover, .suggestion-chip.ai.active, .suggestion-chip.ai.scanning-active {
+  background: #cc88ff;
+  color: #000;
+  box-shadow: 0 0 10px rgba(204, 136, 255, 0.4);
 }
 
 /* Área de Texto Actual */
@@ -146,6 +168,14 @@
   background: rgba(0, 255, 204, 0.3);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform linear;
+  transition: none; /* reset instantáneo al perder el highlight */
   pointer-events: none;
+}
+
+/* Al activarse el elemento en el ciclo de escaneo, la barra de dwell se llena
+   a la velocidad del período de escaneo (--dwell-duration la fija app.js) */
+.key-btn.scanning-active .dwell-indicator,
+.suggestion-chip.scanning-active .dwell-indicator {
+  transform: scaleX(1);
+  transition: transform var(--dwell-duration, 1s) linear;
 }

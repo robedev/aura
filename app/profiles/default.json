@@ -29,13 +29,36 @@
     "errorTolerance": 1.2,
     "learningRate": 0.1
   },
-  "rules": [],
+  "rules": [
+    {
+      "gesture": "headTiltRightSustained",
+      "action": "right-click",
+      "param": "",
+      "priority": 0
+    },
+    {
+      "gesture": "headTiltLeftSustained",
+      "action": "scroll-down",
+      "param": "",
+      "priority": 0
+    }
+  ],
   "calibration": {
     "neutralPose": {
-      "x": 0.5281687378883362,
-      "y": 0.5912227630615234
+      "x": 0.5352771878242493,
+      "y": 0.7179805040359497
     },
-    "lastCalibrated": "2026-06-10T04:21:20.191Z",
+    "lastCalibrated": "2026-07-01T22:28:54.665Z",
     "adaptationHistory": []
-  }
+  },
+  "learnings": {
+    "words": [],
+    "bigrams": {}
+  },
+  "ttsAnnouncements": {
+    "enabled": true,
+    "fatigue": true,
+    "actions": false
+  },
+  "onboardingCompleted": true
 }

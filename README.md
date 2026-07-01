@@ -533,12 +533,18 @@ Para preguntas, soporte o colaboraciones:
 
 ---
 
-## 🎉 **ESTADO DEL PROYECTO: DESARROLLO ACTIVO (BETA v0.2.3)**
+## 🎉 **ESTADO DEL PROYECTO: DESARROLLO ACTIVO (BETA v0.4.0)**
 
-**Aura v0.2.3 es una aplicación revolucionaria de accesibilidad facial** en fase de desarrollo activo, completamente implementada, probada y lista para uso experimental:
+**Aura v0.4.0 es una aplicación revolucionaria de accesibilidad facial** en fase de desarrollo activo, completamente implementada, probada y lista para uso experimental:
 
 ### ✅ **Funcionalidades Completas y Verificadas**
 - 🤖 **IA Adaptativa Totalmente Funcional**: Aprendizaje automático continuo + calibración automática inteligente
+- 🧭 **Wizard de Calibración de Gestos**: 5 pasos guiados que calculan umbrales personalizados para cada usuario (v0.3.0)
+- ⚖️ **Motor de Reglas Avanzado**: Prioridades y condiciones OR en las reglas gesto→acción (v0.3.0)
+- 🎹 **Smart Scanning Completo**: Escaneo de predicciones → filas → teclas con indicador de dwell animado (v0.3.0)
+- 🔊 **TTS Proactivo**: Anuncios de voz de calibración, pausa, fatiga y errores de cámara (v0.4.0)
+- 👋 **Onboarding Interactivo**: Tutorial de 5 pasos en el primer arranque con reglas recomendadas (v0.4.0)
+- ✨ **Sugerencias Claude AI**: Chips inteligentes con Claude Haiku 4.5 cuando el predictor local se queda corto — opcional, requiere API key (v0.4.0)
 - 🎛️ **Personalización Completa**: 9 parámetros configurables con panel profesional
 - 🌍 **Multiplataforma 100%**: Linux, Windows, macOS completamente soportados con instalación automática
 - 🖱️ **Control Total del Sistema**: Mouse profesional, teclado avanzado, ventanas, multimedia
@@ -570,7 +576,7 @@ pnpm run dist
 
 ### 🎯 **Próximos Pasos Estratégicos**
 
-1. **📦 Primera Release Beta**: Publicar v0.2.3 en GitHub con paquetes binarios
+1. **📦 Primera Release Beta**: Publicar v0.4.0 en GitHub con paquetes binarios
 2. **👥 Beta Testing Comunitario**: Validación con usuarios reales con discapacidades
 3. **📊 Certificación Accesibilidad**: Validación WCAG 2.1 AA profesional
 4. **🌍 Internacionalización**: Soporte multiidioma para TTS y UI
@@ -594,5 +600,4 @@ Aura representa un **avance significativo** en tecnología de accesibilidad, com
 - **Aprendizaje adaptativo** con control preciso
 - **Accesibilidad universal** con facilidad de uso
 
-**Para personas con cuadriplejia, Aura significa independencia digital completa.** 🎯✨</content>
-<parameter name="filePath">README.md
+**Para personas con cuadriplejia, Aura significa independencia digital completa.** 🎯✨

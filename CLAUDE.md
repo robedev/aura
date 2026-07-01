@@ -26,7 +26,8 @@ app/main/           Electron main process
   main.js           App init, IPC coordination, graceful shutdown
   os-controller.js  Cross-platform OS commands (xdotool/PowerShell/AppleScript)
   profile-manager.js User config persistence
-  rules-engine.js   Gesture → action mapping
+  rules-engine.js   Gesture → action mapping (priority + anyOf/OR support)
+  ai-service.js     Claude AI keyboard suggestions (Haiku 4.5); disabled without ANTHROPIC_API_KEY
 app/renderer/       Renderer process (HTML/CSS/JS)
   app.js            UI logic, gesture detection coordination
   services/         Predictor.js (adaptive AI)
@@ -44,7 +45,7 @@ Gesture state machine: `inactive → observing → preselection → executing`
 
 **Resource cleanup is non-negotiable.** Orphaned `xdotool` or `espeak` processes break accessibility for the user. Every new code path that spawns a subprocess must call cleanup in `os-controller.js`. When in doubt, trace how `performGracefulShutdown()` and `releaseAllKeys()` work.
 
-**No cloud transmission.** All face tracking and gesture recognition is local. Never add any code that transmits video frames, landmark data, or user behavior off-device.
+**No cloud transmission.** All face tracking and gesture recognition is local. Never add any code that transmits video frames, landmark data, or user behavior off-device. Sole documented exception: `ai-service.js` sends only the partial text typed in the smart keyboard to the Anthropic API, and only when the user has explicitly configured `ANTHROPIC_API_KEY` (env var or `.env`, see `.env.example`).
 
 **Async main process.** Never block the Electron main process — use `async/await` for all OS commands.
 

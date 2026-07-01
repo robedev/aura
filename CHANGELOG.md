@@ -2,6 +2,57 @@
 
 ---
 
+## [0.4.0] - 2026-07-01 - SPRINT 3: TTS, ONBOARDING E INTEGRACIÓN CLAUDE AI ✨
+
+### 🔊 **N5 · TTS PROACTIVO DE ESTADO Y FATIGA**
+
+- ✅ **Anuncios de voz automáticos** vía `osController.readText()` (espeak/festival): "Calibración lista", "Sistema pausado", "Sistema activo", "Cámara no disponible", "Descansemos un momento" (fatiga) y "Acción ejecutada" (opcional).
+- ✅ **Lista blanca de mensajes**: el renderer solo envía la clave del evento por IPC `tts-announce`, nunca texto libre hacia espeak — sin vector de inyección.
+- ✅ **Anti-spam de fatiga**: el anuncio de descanso se emite como máximo una vez cada 5 minutos, al superar el nivel de fatiga 0.7.
+- ✅ **Configurable en el perfil**: `ttsAnnouncements: { enabled, fatigue, actions }` — `actions` desactivado por defecto para no ser verboso.
+
+### 👋 **N3 · ONBOARDING WIZARD INTERACTIVO**
+
+- ✅ **Tutorial de 5 pasos en el primer arranque**: bienvenida → posición de cámara (con detección de rostro en vivo) → calibración de posición neutral (cuenta atrás 3s) → prueba de gestos (checklist con feedback inmediato) → reglas iniciales recomendadas.
+- ✅ **Reglas según comodidad**: el paso 4 registra el orden en que el usuario logra cada gesto; el paso 5 propone 3 reglas mapeando los gestos más cómodos a click derecho / scroll abajo / scroll arriba (con variantes sostenidas para evitar falsos positivos). El usuario puede aplicarlas u omitirlas.
+- ✅ **Trigger `profile.onboardingCompleted`**: se muestra una sola vez; "OMITIR TUTORIAL" disponible en todo momento. Nuevo `onboarding.css`.
+
+### ✨ **N1 · INTEGRACIÓN CLAUDE AI PARA SUGERENCIAS CONTEXTUALES**
+
+- ✅ **Nuevo `app/main/ai-service.js`**: cliente del SDK de Anthropic con Claude Haiku 4.5 (`claude-haiku-4-5-20251001`), cache LRU de 100 entradas y control de peticiones simultáneas.
+- ✅ **Activación inteligente**: solo cuando el predictor local devuelve <3 sugerencias y hay 3+ palabras de contexto, con debounce de 600ms. Las respuestas obsoletas (el usuario siguió escribiendo) se descartan.
+- ✅ **Chips ✨ diferenciados en violeta** (`.suggestion-chip.ai`), integrados en el ciclo de Smart Scanning y en el aprendizaje del predictor local al seleccionarlos.
+- ✅ **Privacidad**: solo se envía el texto parcial del teclado — nunca video, landmarks ni datos de identificación. Sin `ANTHROPIC_API_KEY` (variable de entorno o `.env`), el servicio queda deshabilitado y Aura funciona 100% local. Nuevo `.env.example` documentado.
+- ✅ **Dependencia**: `@anthropic-ai/sdk` ^0.109.0.
+
+---
+
+## [0.3.0] - 2026-07-01 - SPRINT 2: CALIBRACIÓN, ESCANEO Y REGLAS AVANZADAS 🧭
+
+### 🧭 **M2 · WIZARD DE CALIBRACIÓN DE GESTOS**
+
+- ✅ **Nuevo asistente de calibración de 5 pasos** (botón "🧭 CALIBRAR GESTOS" en el panel de configuración): expresión neutral → cejas → boca → inclinación izquierda → inclinación derecha. Cada paso mide 3 segundos con cuenta atrás de preparación.
+- ✅ **Umbrales personalizados automáticos**: se calculan al 60% del rango real detectado entre el baseline neutral y el máximo del gesto (percentil 90 para robustez frente a outliers de MediaPipe), con límites de seguridad por gesto.
+- ✅ **Pantalla de resumen con confirmación**: el usuario ve los umbrales propuestos y decide guardarlos o descartarlos. Se persisten en `profile.calibration.calibratedThresholds` (IPC existente `save-calibrated-thresholds`).
+- ✅ **Modo medición seguro**: durante el wizard no se mueve el ratón ni se ejecutan acciones; si se pierde el rostro, el paso se repite automáticamente.
+
+### 🎹 **M4 · SMART SCANNING COMPLETO**
+
+- ✅ **Barra de predicciones seleccionable**: al seleccionar la barra en el ciclo de filas, el escaneo entra a recorrer los chips individuales (`scanSuggestionIndex`); el gesto de activación inserta el chip resaltado.
+- ✅ **Ciclo completo**: predicciones → filas del teclado → teclas individuales, con reinicio desde la barra de predicciones tras cada inserción (las sugerencias recién actualizadas quedan a un gesto de distancia).
+- ✅ **Animación del dwell indicator**: la barra de progreso se llena a la velocidad del período de escaneo (variable CSS `--dwell-duration` sincronizada con el `dwellTime` del perfil).
+- ✅ **Robustez**: la barra de predicciones se salta si no hay sugerencias; el número de filas se cuenta desde el DOM (el modo FRASES con distinto número de filas ya no rompe el ciclo); indicadores de dwell añadidos también a chips y botones de frases.
+
+### ⚖️ **M3 · MOTOR DE REGLAS CON PRIORIDADES Y CONDICIONES OR**
+
+- ✅ **Campo `priority`** (opcional): mayor número = mayor prioridad; a igual prioridad se mantiene el orden de inserción. Reglas existentes sin `priority` se comportan exactamente igual que antes.
+- ✅ **Campo `anyOf`** (opcional): la regla se activa si CUALQUIERA de los gestos listados está activo (OR). Si está presente, ignora `gesture`.
+- ✅ **Editor de reglas ampliado**: selector de gesto alternativo (OR) y slider de prioridad (0–10). La lista de reglas muestra `gesto Ó gesto → acción [P5]`.
+- ✅ **Refactor en `main.js`**: la traducción de reglas JSON → acciones del engine estaba triplicada; unificada en `translateRuleAction()` / `loadRuleIntoEngine()` que propagan `priority` y `anyOf`.
+- ✅ **Verificado con tests**: retrocompatibilidad, prioridad, OR, AND múltiple y estabilidad de orden (5/5).
+
+---
+
 ## [0.2.4] - 2026-06-30 - CORRECCIONES CRÍTICAS Y PERSISTENCIA DE APRENDIZAJE 🔧
 
 ### 🐛 **CORRECCIONES CRÍTICAS**

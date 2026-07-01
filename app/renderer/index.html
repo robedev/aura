@@ -256,6 +256,56 @@
     input[type="checkbox"] {
       margin-right: 8px;
     }
+
+    /* Wizard de calibración de gestos */
+    .wizard-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .wizard-box {
+      background: var(--glass);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 450px;
+      text-align: center;
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+
+    .wizard-box h3 {
+      color: var(--accent);
+      margin-top: 0;
+    }
+
+    .wizard-box p {
+      font-size: 1rem;
+      line-height: 1.5;
+      min-height: 48px;
+    }
+
+    #wizardProgress {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--accent);
+      min-height: 48px;
+      margin: 10px 0;
+    }
+
+    .wizard-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 15px;
+    }
   </style>
 </head>
 
@@ -364,6 +414,14 @@
         </select>
         <input type="text" id="actionParam" placeholder="Texto para escribir..."
           style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px; display: none;">
+        <select id="gestureSelectOr"
+          style="width: 100%; background: #111; color: white; border: 1px solid #333; padding: 5px; margin-bottom: 5px;">
+          <option value="">Sin gesto alternativo (solo AND)</option>
+        </select>
+        <label style="font-size: 0.8rem; display: block; margin-bottom: 2px;">
+          Prioridad: <span id="rulePriorityValue">0</span>
+        </label>
+        <input type="range" id="rulePriority" min="0" max="10" step="1" value="0" style="margin-bottom: 5px;">
         <button id="addRule" style="width: 100%;">+ AGREGAR REGLA</button>
       </div>
     </div>
@@ -433,8 +491,35 @@
 
     <div style="margin-top: 15px; display: flex; gap: 10px;">
       <button id="saveSettings" style="flex: 1;">💾 GUARDAR CONFIGURACIÓN</button>
+      <button id="calibrateGestures">🧭 CALIBRAR GESTOS</button>
       <button id="resetSettings" style="background: #ff4444; border-color: #ff4444;">🔄 RESTABLECER</button>
       <button id="closeSettings">❌ CERRAR</button>
+    </div>
+  </div>
+
+  <!-- Onboarding wizard (N3) -->
+  <div id="onboardingOverlay" class="onboarding-overlay">
+    <div class="onboarding-box">
+      <div class="onboarding-steps" id="onboardingSteps"></div>
+      <h3 id="onboardingTitle"></h3>
+      <div class="onboarding-body" id="onboardingBody"></div>
+      <div class="onboarding-buttons">
+        <button id="onboardingSkip" style="color: #888; border-color: #555;">OMITIR TUTORIAL</button>
+        <button id="onboardingNext">SIGUIENTE →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wizard de calibración de gestos (M2) -->
+  <div id="calibrationWizard" class="wizard-overlay">
+    <div class="wizard-box">
+      <h3 id="wizardTitle">🧭 Calibración de Gestos</h3>
+      <p id="wizardInstruction">Este asistente medirá el rango de tus gestos para calcular los umbrales óptimos para ti. Necesitarás realizar 5 pasos de 3 segundos cada uno.</p>
+      <div id="wizardProgress"></div>
+      <div class="wizard-buttons">
+        <button id="wizardStart">COMENZAR</button>
+        <button id="wizardCancel" style="color: #ff4444; border-color: #ff4444;">CANCELAR</button>
+      </div>
     </div>
   </div>
 
@@ -444,6 +529,7 @@
   </div>
 
   <link rel="stylesheet" href="styles/smart-keyboard.css">
+  <link rel="stylesheet" href="styles/onboarding.css">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="../vision/face-tracking.js"></script>

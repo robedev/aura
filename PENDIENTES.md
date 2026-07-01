@@ -2,10 +2,13 @@
 
 > Documento generado el 30/06/2026 tras el Sprint 1 (v0.2.4).
 > Organizado por sprint y prioridad de implementación.
+>
+> **Actualización 01/07/2026:** Sprint 2 completado en v0.3.0 (M2, M3 y M4 implementados).
+> **Actualización 01/07/2026:** Sprint 3 completado en v0.4.0 (N5, N3 y N1 implementados).
 
 ---
 
-## Sprint 2 — Mejoras de base
+## Sprint 2 — Mejoras de base ✅ COMPLETADO (v0.3.0)
 
 ### M2 · Calibración de thresholds por usuario
 
@@ -89,7 +92,7 @@ Estado: isScanningRow = true
 
 ---
 
-## Sprint 3 — Nuevas características
+## Sprint 3 — Nuevas características ✅ COMPLETADO (v0.4.0)
 
 ### N1 ⭐ · Integración Claude AI para sugerencias contextuales
 
@@ -286,13 +289,10 @@ module.exports = {
 ## Orden de implementación recomendado
 
 ```
-Sprint 2 (próximo):
-  M2 → M4 → M3
+Sprint 2: ✅ COMPLETADO (v0.3.0)
+Sprint 3: ✅ COMPLETADO (v0.4.0)
 
-Sprint 3:
-  N5 (bajo coste, alto impacto) → N3 → N1 (requiere API key)
-
-Sprint 4:
+Sprint 4 (próximo):
   M6 → M5 → N6 → N4 → N2 (mayor complejidad)
 
 Paralelo a cualquier sprint:
