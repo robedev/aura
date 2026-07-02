@@ -11,22 +11,7 @@ class ProfileManager {
         try {
             if (fs.existsSync(this.profilePath)) {
                 const data = fs.readFileSync(this.profilePath, 'utf8');
-                this.currentProfile = JSON.parse(data);
-                // Ensure new properties exist (backward compatibility)
-                this.currentProfile.thresholds = {
-                    ...this.getDefaultProfile().thresholds,
-                    ...this.currentProfile.thresholds
-                };
-                this.currentProfile.adaptive = {
-                    ...this.getDefaultProfile().adaptive,
-                    ...this.currentProfile.adaptive
-                };
-                this.currentProfile.calibration.adaptationHistory = this.currentProfile.calibration.adaptationHistory || [];
-                this.currentProfile.learnings = this.currentProfile.learnings || { words: [], bigrams: {} };
-                this.currentProfile.ttsAnnouncements = {
-                    ...this.getDefaultProfile().ttsAnnouncements,
-                    ...this.currentProfile.ttsAnnouncements
-                };
+                this.currentProfile = this.normalizeProfile(JSON.parse(data));
                 console.log('Profile loaded:', this.currentProfile.name);
             } else {
                 console.warn('Profile file not found, creating default.');
@@ -38,6 +23,20 @@ class ProfileManager {
             this.currentProfile = this.getDefaultProfile();
         }
         return this.currentProfile;
+    }
+
+    // Garantiza que un perfil (cargado o importado) tenga todas las
+    // propiedades nuevas (backward compatibility)
+    normalizeProfile(profile) {
+        const defaults = this.getDefaultProfile();
+        profile.thresholds = { ...defaults.thresholds, ...profile.thresholds };
+        profile.adaptive = { ...defaults.adaptive, ...profile.adaptive };
+        profile.calibration = profile.calibration || defaults.calibration;
+        profile.calibration.adaptationHistory = profile.calibration.adaptationHistory || [];
+        profile.learnings = profile.learnings || { words: [], bigrams: {} };
+        profile.ttsAnnouncements = { ...defaults.ttsAnnouncements, ...profile.ttsAnnouncements };
+        profile.rules = profile.rules || [];
+        return profile;
     }
 
     save() {
@@ -77,6 +76,83 @@ class ProfileManager {
             this.currentProfile.rules.splice(index, 1);
             this.save();
         }
+    }
+
+    // --- Multi-perfil (M5) ---
+
+    // Sanea el nombre para usarlo como nombre de archivo:
+    // evita path traversal y caracteres problemáticos
+    sanitizeName(name) {
+        if (typeof name !== 'string') return null;
+        const safe = name.trim().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9_-]/g, '');
+        return safe.length > 0 ? safe : null;
+    }
+
+    currentProfileFileName() {
+        return path.basename(this.profilePath, '.json');
+    }
+
+    listProfiles() {
+        const dir = path.dirname(this.profilePath);
+        try {
+            return fs.readdirSync(dir)
+                .filter(f => f.endsWith('.json'))
+                .map(f => path.basename(f, '.json'))
+                .sort();
+        } catch (error) {
+            console.error('Error listing profiles:', error);
+            return [this.currentProfileFileName()];
+        }
+    }
+
+    switchProfile(name) {
+        const safe = this.sanitizeName(name);
+        if (!safe) return null;
+        const newPath = path.join(path.dirname(this.profilePath), `${safe}.json`);
+        if (!fs.existsSync(newPath)) {
+            console.warn(`Profile "${safe}" not found`);
+            return null;
+        }
+        this.save(); // persistir el perfil actual antes de cambiar
+        this.profilePath = newPath;
+        return this.load();
+    }
+
+    createProfile(name) {
+        const safe = this.sanitizeName(name);
+        if (!safe) return null;
+        const newPath = path.join(path.dirname(this.profilePath), `${safe}.json`);
+        if (fs.existsSync(newPath)) {
+            console.warn(`Profile "${safe}" already exists`);
+            return null;
+        }
+        this.save(); // persistir el perfil actual antes de cambiar
+        this.profilePath = newPath;
+        this.currentProfile = this.getDefaultProfile();
+        this.currentProfile.name = name.trim();
+        this.currentProfile.onboardingCompleted = true; // el usuario ya vio el tutorial
+        this.save();
+        return this.currentProfile;
+    }
+
+    // --- Exportar/importar perfiles (N6) ---
+
+    validateProfileData(data) {
+        return !!(data && typeof data === 'object' &&
+            data.thresholds && typeof data.thresholds === 'object' &&
+            Array.isArray(data.rules) &&
+            data.calibration && typeof data.calibration === 'object');
+    }
+
+    importProfile(data) {
+        if (!this.validateProfileData(data)) return false;
+        this.currentProfile = this.normalizeProfile(data);
+        this.currentProfile.onboardingCompleted = true;
+        this.save();
+        return true;
     }
 
     getDefaultProfile() {

@@ -1,0 +1,64 @@
+/* Panel de estadísticas de uso (M6) */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.stat-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.stat-card h4 {
+  margin: 0 0 6px 0;
+  font-size: 0.75rem;
+  color: rgba(224, 224, 255, 0.7);
+  font-weight: normal;
+}
+
+.stat-card p {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: var(--accent, #00ffcc);
+}
+
+.stats-section {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+}
+
+.stats-section h4 {
+  margin: 0 0 8px 0;
+  color: var(--accent, #00ffcc);
+  font-size: 0.9rem;
+}
+
+.stats-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.stats-section li {
+  padding: 3px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-bar {
+  display: inline-block;
+  height: 8px;
+  background: var(--accent, #00ffcc);
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

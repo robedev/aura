@@ -5,6 +5,7 @@
 >
 > **Actualización 01/07/2026:** Sprint 2 completado en v0.3.0 (M2, M3 y M4 implementados).
 > **Actualización 01/07/2026:** Sprint 3 completado en v0.4.0 (N5, N3 y N1 implementados).
+> **Actualización 01/07/2026:** Sprint 4 completado en v0.5.0 (M6, M5, N6, N4 y N2-experimental implementados). Solo queda el Bug 5 por evaluar.
 
 ---
 
@@ -172,7 +173,11 @@ Renderer (app.js)
 
 ---
 
-## Sprint 4 — Madurez del sistema
+## Sprint 4 — Madurez del sistema ✅ COMPLETADO (v0.5.0)
+
+> N2 implementado como **experimental**: la precisión real del mapeo iris→pantalla
+> debe validarse con usuarios; puede requerir ajustar el suavizado (gazeAlpha) o
+> el dwell de 1.5s según los resultados.
 
 ### M5 · Multi-perfil
 
@@ -291,12 +296,11 @@ module.exports = {
 ```
 Sprint 2: ✅ COMPLETADO (v0.3.0)
 Sprint 3: ✅ COMPLETADO (v0.4.0)
+Sprint 4: ✅ COMPLETADO (v0.5.0) — N2 en fase experimental
 
-Sprint 4 (próximo):
-  M6 → M5 → N6 → N4 → N2 (mayor complejidad)
-
-Paralelo a cualquier sprint:
+Pendiente:
   Bug 5 (evaluación rápida)
+  Validación con usuarios reales de N2 (eye-spelling)
 ```
 
 ---

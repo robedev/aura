@@ -28,12 +28,14 @@ app/main/           Electron main process
   profile-manager.js User config persistence
   rules-engine.js   Gesture → action mapping (priority + anyOf/OR support)
   ai-service.js     Claude AI keyboard suggestions (Haiku 4.5); disabled without ANTHROPIC_API_KEY
+  plugin-manager.js Loads custom action plugins from app/plugins/ (namespaced plugin:<id>)
 app/renderer/       Renderer process (HTML/CSS/JS)
   app.js            UI logic, gesture detection coordination
   services/         Predictor.js (adaptive AI)
 app/vision/
   face-tracking.js  MediaPipe Face Mesh integration, landmark-to-gesture translation
-app/profiles/       User profile JSON configs (calibration, sensitivity, rules)
+app/profiles/       User profile JSON configs (multi-profile: one file per profile)
+app/plugins/        Custom action plugins ({ id, label, execute(osController) })
 scripts/            Platform setup and integration test utilities
 ```
 

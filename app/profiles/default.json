@@ -31,24 +31,24 @@
   },
   "rules": [
     {
-      "gesture": "headTiltRightSustained",
-      "action": "right-click",
+      "gesture": "mouthOpen",
+      "action": "click",
       "param": "",
-      "priority": 0
+      "priority": 5
     },
     {
-      "gesture": "headTiltLeftSustained",
-      "action": "scroll-down",
+      "gesture": "mouthOpenSustained",
+      "action": "volume-up",
       "param": "",
       "priority": 0
     }
   ],
   "calibration": {
     "neutralPose": {
-      "x": 0.5352771878242493,
-      "y": 0.7179805040359497
+      "x": 0.5264966487884521,
+      "y": 0.68589848279953
     },
-    "lastCalibrated": "2026-07-01T22:28:54.665Z",
+    "lastCalibrated": "2026-07-01T23:01:07.322Z",
     "adaptationHistory": []
   },
   "learnings": {

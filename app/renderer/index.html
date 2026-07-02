@@ -324,6 +324,9 @@
       <div id="calibration-status" style="font-size: 0.8rem; margin-top: 2px; display: none;"></div>
     </div>
     <div class="controls">
+      <select id="profileSelect" title="Perfil activo"
+        style="background: #111; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 6px; -webkit-app-region: no-drag;"></select>
+      <button id="newProfile" title="Crear perfil nuevo">➕</button>
       <button id="toggleKeyboard">Teclado</button>
       <button id="settings">⚙️ CONFIG</button>
       <button id="calibrate">CALIBRAR</button>
@@ -356,6 +359,8 @@
         <button id="scrollDown">Scroll ↓</button>
         <button id="minimize">Minimizar</button>
         <button id="closeWindow">Cerrar</button>
+        <button id="statsBtn">📊 Stats</button>
+        <button id="eyeSpelling" title="Deletreo por mirada (experimental)">👁 Deletreo</button>
       </div>
 
       <h3 id="toggleApps" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
@@ -489,12 +494,36 @@
       </div>
     </div>
 
-    <div style="margin-top: 15px; display: flex; gap: 10px;">
+    <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
       <button id="saveSettings" style="flex: 1;">💾 GUARDAR CONFIGURACIÓN</button>
       <button id="calibrateGestures">🧭 CALIBRAR GESTOS</button>
+      <button id="exportProfile">📤 EXPORTAR</button>
+      <button id="importProfile">📥 IMPORTAR</button>
       <button id="resetSettings" style="background: #ff4444; border-color: #ff4444;">🔄 RESTABLECER</button>
       <button id="closeSettings">❌ CERRAR</button>
     </div>
+  </div>
+
+  <!-- Panel de estadísticas de uso (M6) -->
+  <div id="statsPanel"
+    style="display: none; padding: 15px; background: var(--glass); margin: 0 15px 15px 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+    <h3 style="margin-top: 0; color: var(--accent);">📊 ESTADÍSTICAS DE USO</h3>
+    <div id="statsContent"></div>
+    <h4 style="color: var(--accent);">Evolución del dwell time adaptativo</h4>
+    <canvas id="statsChart" width="820" height="180"
+      style="width: 100%; background: rgba(0, 0, 0, 0.3); border-radius: 6px;"></canvas>
+    <div style="margin-top: 10px;">
+      <button id="closeStats">❌ CERRAR</button>
+    </div>
+  </div>
+
+  <!-- Overlay de eye-spelling (N2, experimental) -->
+  <div id="eyeSpellingOverlay" class="eye-spelling-overlay">
+    <div class="eye-spelling-topbar">
+      <span id="eyeSpellingText" class="eye-spelling-text"></span>
+      <button id="eyeSpellingClose" style="color: #ff4444; border-color: #ff4444;">✕ SALIR</button>
+    </div>
+    <div id="eyeSpellingStage" class="eye-spelling-stage"></div>
   </div>
 
   <!-- Onboarding wizard (N3) -->
@@ -530,6 +559,8 @@
 
   <link rel="stylesheet" href="styles/smart-keyboard.css">
   <link rel="stylesheet" href="styles/onboarding.css">
+  <link rel="stylesheet" href="styles/stats-panel.css">
+  <link rel="stylesheet" href="styles/eye-spelling.css">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="../vision/face-tracking.js"></script>

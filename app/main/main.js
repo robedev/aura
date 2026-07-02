@@ -4,8 +4,11 @@ const RuleEngine = require('./rules-engine.js');
 const ProfileManager = require('./profile-manager.js');
 const osController = require('./os-controller.js');
 const AIService = require('./ai-service.js');
+const PluginManager = require('./plugin-manager.js');
 
 const aiService = new AIService();
+const pluginManager = new PluginManager(path.join(__dirname, '../plugins'));
+pluginManager.load();
 
 const profileManager = new ProfileManager(path.join(__dirname, '../profiles/default.json'));
 const profile = profileManager.load();
@@ -34,6 +37,12 @@ function loadRuleIntoEngine(r) {
     priority: r.priority,
     anyOf: r.anyOf
   });
+}
+
+// Reconstruye el engine desde el perfil activo (cambio de perfil, importación, borrado de regla)
+function reloadRulesEngine() {
+  ruleEngine.rules = [];
+  profileManager.currentProfile.rules.forEach(loadRuleIntoEngine);
 }
 
 // Load saved rules into engine
@@ -160,7 +169,8 @@ ipcMain.on('click-mouse', (event, button) => {
 
 ipcMain.on('gesture-update', (event, gestures) => {
   const now = Date.now();
-  const executionCooldown = profile.thresholds?.executionCooldown || 800;
+  // Leer del perfil ACTIVO (puede haber cambiado con multi-perfil)
+  const executionCooldown = profileManager.currentProfile?.thresholds?.executionCooldown || 800;
   if (now - lastExecutionTime < executionCooldown) return;
 
   const action = ruleEngine.evaluate(gestures);
@@ -206,6 +216,8 @@ ipcMain.on('gesture-update', (event, gestures) => {
     } else if (action.startsWith('read-text-')) {
       const text = action.split('-').slice(2).join('-');
       osController.readText(text);
+    } else if (action.startsWith('plugin:')) {
+      pluginManager.execute(action, osController);
     }
 
     // Send visual feedback to UI
@@ -241,18 +253,97 @@ ipcMain.on('add-rule', (event, rule) => {
 });
 
 ipcMain.on('remove-rule', (event, index) => {
-  // Remove from rule engine (rebuild it)
-  ruleEngine.rules = [];
   profileManager.removeRule(index);
-
-  // Reload all rules into engine
-  profileManager.currentProfile.rules.forEach(loadRuleIntoEngine);
-
+  reloadRulesEngine();
   console.log('Rule removed and engine updated');
 
   // Send updated rules list to renderer
   if (mainWindow) {
     mainWindow.webContents.send('rules-updated', profileManager.currentProfile.rules);
+  }
+});
+
+// --- Multi-perfil (M5) ---
+
+function sendProfilesList(sender) {
+  sender.send('profiles-list', {
+    profiles: profileManager.listProfiles(),
+    current: profileManager.currentProfileFileName()
+  });
+}
+
+ipcMain.on('list-profiles', (event) => sendProfilesList(event.sender));
+
+ipcMain.on('switch-profile', (event, name) => {
+  const loaded = profileManager.switchProfile(name);
+  if (loaded) {
+    reloadRulesEngine();
+    event.sender.send('profile-loaded', loaded);
+    sendProfilesList(event.sender);
+    event.sender.send('action-executed', `Perfil activo: ${loaded.name}`);
+    console.log(`👤 Perfil cambiado a: ${name}`);
+  } else {
+    event.sender.send('rule-error', `No se pudo cargar el perfil "${name}"`);
+  }
+});
+
+ipcMain.on('create-profile', (event, name) => {
+  const created = profileManager.createProfile(name);
+  if (created) {
+    reloadRulesEngine();
+    event.sender.send('profile-loaded', created);
+    sendProfilesList(event.sender);
+    event.sender.send('action-executed', `Perfil creado: ${created.name}`);
+    console.log(`👤 Perfil creado: ${name}`);
+  } else {
+    event.sender.send('rule-error', 'No se pudo crear el perfil (nombre inválido o ya existe)');
+  }
+});
+
+// --- Exportar/importar perfiles (N6) ---
+
+ipcMain.on('export-profile', async (event) => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Exportar perfil de Aura',
+      defaultPath: `aura-${profileManager.currentProfileFileName()}.json`,
+      filters: [{ name: 'Perfil JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return;
+    fs.writeFileSync(filePath, JSON.stringify(profileManager.currentProfile, null, 2), 'utf8');
+    event.sender.send('action-executed', 'Perfil exportado correctamente');
+    console.log(`📤 Perfil exportado a: ${filePath}`);
+  } catch (error) {
+    console.error('❌ Error exportando perfil:', error);
+    event.sender.send('rule-error', 'Error al exportar el perfil');
+  }
+});
+
+ipcMain.on('import-profile', async (event) => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Importar perfil de Aura',
+      filters: [{ name: 'Perfil JSON', extensions: ['json'] }],
+      properties: ['openFile']
+    });
+    if (canceled || filePaths.length === 0) return;
+
+    const data = JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+    if (profileManager.importProfile(data)) {
+      reloadRulesEngine();
+      event.sender.send('profile-loaded', profileManager.currentProfile);
+      event.sender.send('action-executed', 'Perfil importado correctamente');
+      console.log(`📥 Perfil importado desde: ${filePaths[0]}`);
+    } else {
+      event.sender.send('rule-error', 'El archivo no es un perfil válido de Aura (faltan thresholds, rules o calibration)');
+    }
+  } catch (error) {
+    console.error('❌ Error importando perfil:', error);
+    event.sender.send('rule-error', 'Error al importar: el archivo no es JSON válido');
   }
 });
 
@@ -364,6 +455,11 @@ ipcMain.on('adaptation-update', (event, adaptationData) => {
     profileManager.save();
     console.log('Adaptation data saved');
   }
+});
+
+// Plugins (N4): acciones personalizadas para el editor de reglas
+ipcMain.on('get-plugin-actions', (event) => {
+  event.sender.send('plugin-actions', pluginManager.getActions());
 });
 
 // Platform information

@@ -1679,6 +1679,366 @@ try {
     auraAPI.send('resize-window', 900, 700);
   });
 
+  // --- Panel de estadísticas de uso (M6) ---
+
+  function renderStatsPanel() {
+    const content = document.getElementById('statsContent');
+    const stats = faceTracker ? faceTracker.usageStats : null;
+    const history = currentSettings?.calibration?.adaptationHistory || [];
+    const learnings = predictor.getLearnings ? predictor.getLearnings() : { words: [] };
+
+    const sessionMinutes = stats ? Math.max(1, Math.round((Date.now() - stats.sessionStartTime) / 60000)) : 0;
+    const total = stats ? stats.totalActions : 0;
+    const accidental = stats ? stats.accidentalActivations : 0;
+    const accidentalRate = total > 0 ? Math.round((accidental / total) * 100) : 0;
+    const fatigue = stats ? Math.round(stats.fatigueLevel * 100) : 0;
+
+    // Top 5 de acciones de la sesión actual
+    const freq = {};
+    (stats?.actionHistory || []).forEach(a => { freq[a.action] = (freq[a.action] || 0) + 1; });
+    const topActions = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxCount = topActions.length ? topActions[0][1] : 1;
+
+    const recentWords = (learnings.words || []).slice(-10).reverse();
+
+    content.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><h4>⏱ Sesión actual</h4><p>${sessionMinutes} min</p></div>
+        <div class="stat-card"><h4>⚡ Acciones</h4><p>${total}</p></div>
+        <div class="stat-card"><h4>⚠️ Accidentales</h4><p>${accidentalRate}%</p></div>
+        <div class="stat-card"><h4>😴 Fatiga</h4><p>${fatigue}%</p></div>
+      </div>
+      <div class="stats-section">
+        <h4>Acciones más ejecutadas (sesión actual)</h4>
+        ${topActions.length
+          ? '<ul>' + topActions.map(([action, count]) =>
+              `<li>${action}: ${count}<span class="stats-bar" style="width: ${Math.round((count / maxCount) * 120)}px"></span></li>`
+            ).join('') + '</ul>'
+          : '<p style="opacity: 0.6;">Sin acciones registradas todavía en esta sesión.</p>'}
+      </div>
+      <div class="stats-section">
+        <h4>Palabras aprendidas recientes (teclado inteligente)</h4>
+        <p>${recentWords.length ? recentWords.join(', ') : '<span style="opacity: 0.6;">Ninguna todavía.</span>'}</p>
+      </div>
+      <div class="stats-section">
+        <h4>Historial de adaptación</h4>
+        <p>${history.length} registro(s) de sesiones anteriores</p>
+      </div>
+    `;
+
+    drawThresholdChart(history);
+  }
+
+  function drawThresholdChart(history) {
+    const canvas = document.getElementById('statsChart');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const points = history
+      .map(h => h.adaptiveThresholds?.dwellTime)
+      .filter(v => typeof v === 'number');
+
+    ctx.font = '12px sans-serif';
+    if (points.length < 2) {
+      ctx.fillStyle = 'rgba(224, 224, 255, 0.5)';
+      ctx.fillText('Sin historial suficiente para el gráfico (se genera con el uso)', 20, canvas.height / 2);
+      return;
+    }
+
+    const pad = 35;
+    const w = canvas.width - pad * 2;
+    const h = canvas.height - pad * 2;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+
+    // Ejes
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(pad, pad);
+    ctx.lineTo(pad, pad + h);
+    ctx.lineTo(pad + w, pad + h);
+    ctx.stroke();
+
+    // Etiquetas min/max
+    ctx.fillStyle = 'rgba(224, 224, 255, 0.6)';
+    ctx.fillText(`${Math.round(max)}ms`, 2, pad + 4);
+    ctx.fillText(`${Math.round(min)}ms`, 2, pad + h);
+
+    // Línea de evolución del dwell time
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach((v, i) => {
+      const x = pad + (i / (points.length - 1)) * w;
+      const y = pad + h - ((v - min) / range) * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  document.getElementById('statsBtn').onclick = () => {
+    const panel = document.getElementById('statsPanel');
+    const isHidden = panel.style.display === 'none' || !panel.style.display;
+    if (isHidden) {
+      auraAPI.send('get-profile-settings'); // refrescar adaptationHistory
+      renderStatsPanel();
+      panel.style.display = 'block';
+      auraAPI.send('resize-window', 900, 1000);
+    } else {
+      panel.style.display = 'none';
+      auraAPI.send('resize-window', 900, 700);
+    }
+  };
+
+  document.getElementById('closeStats').onclick = () => {
+    document.getElementById('statsPanel').style.display = 'none';
+    auraAPI.send('resize-window', 900, 700);
+  };
+
+  // --- Multi-perfil (M5) ---
+
+  auraAPI.on('profiles-list', (event, data) => {
+    const select = document.getElementById('profileSelect');
+    select.innerHTML = '';
+    data.profiles.forEach(name => select.add(new Option(name, name)));
+    select.value = data.current;
+  });
+
+  document.getElementById('profileSelect').onchange = (e) => {
+    auraAPI.send('switch-profile', e.target.value);
+  };
+
+  document.getElementById('newProfile').onclick = () => {
+    const name = prompt('Nombre del nuevo perfil (ej. Trabajo, Hogar, Terapia):');
+    if (name && name.trim()) {
+      auraAPI.send('create-profile', name.trim());
+    }
+  };
+
+  auraAPI.send('list-profiles');
+
+  // --- Exportar/importar perfiles (N6) ---
+
+  document.getElementById('exportProfile').onclick = () => auraAPI.send('export-profile');
+
+  document.getElementById('importProfile').onclick = () => {
+    if (confirm('Importar reemplazará la configuración del perfil actual. ¿Continuar?')) {
+      auraAPI.send('import-profile');
+    }
+  };
+
+  // --- Acciones de plugins (N4) ---
+
+  auraAPI.on('plugin-actions', (event, actions) => {
+    const select = document.getElementById('actionSelect');
+    actions.forEach(a => {
+      if (![...select.options].some(opt => opt.value === a.id)) {
+        select.add(new Option(a.label, a.id));
+      }
+      actionDescriptions[a.id] = a.label; // para mostrar en la lista de reglas
+    });
+    if (actions.length > 0) console.log(`🔌 ${actions.length} acción(es) de plugin disponibles`);
+  });
+
+  auraAPI.send('get-plugin-actions');
+
+  // --- Eye-spelling (N2, experimental) ---
+
+  const EYE_GRID = [
+    ['A', 'B', 'C', 'D', 'E', 'F'],
+    ['G', 'H', 'I', 'J', 'K', 'L'],
+    ['M', 'N', 'O', 'P', 'Q', 'R'],
+    ['S', 'T', 'U', 'V', 'W', 'X'],
+    ['Y', 'Z', 'Ñ', '␣', '⌫', '✕']
+  ];
+  const EYE_CAL_POINTS = [
+    { x: 0.1, y: 0.15 }, { x: 0.5, y: 0.15 }, { x: 0.9, y: 0.15 },
+    { x: 0.1, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.5 },
+    { x: 0.1, y: 0.85 }, { x: 0.5, y: 0.85 }, { x: 0.9, y: 0.85 }
+  ];
+  const EYE_DWELL_MS = 1500;
+  let eyeSpellingLoop = null;
+  let eyeDwell = { key: null, start: 0 };
+  let eyeText = '';
+
+  function startEyeSpelling() {
+    if (!faceTracker) {
+      alert('El seguimiento facial no está activo. Inicia la cámara antes de usar el deletreo.');
+      return;
+    }
+    eyeText = '';
+    document.getElementById('eyeSpellingText').textContent = '';
+    document.getElementById('eyeSpellingOverlay').style.display = 'flex';
+    faceTracker.setEyeSpellingActive(true);
+    runEyeCalibration();
+  }
+
+  function stopEyeSpelling() {
+    if (eyeSpellingLoop) clearInterval(eyeSpellingLoop);
+    eyeSpellingLoop = null;
+    if (faceTracker) faceTracker.setEyeSpellingActive(false);
+    document.getElementById('eyeSpellingOverlay').style.display = 'none';
+
+    // Volcar el texto deletreado al teclado inteligente
+    if (eyeText.trim()) {
+      smartKeyboardState.currentInput += eyeText;
+      const display = document.getElementById('inputDisplay');
+      if (display) display.textContent = smartKeyboardState.currentInput;
+    }
+  }
+
+  function runEyeCalibration() {
+    const stage = document.getElementById('eyeSpellingStage');
+    stage.innerHTML =
+      '<div class="eye-cal-message">👁 <b>Calibración ocular</b><br>' +
+      'Sigue el punto con la mirada, <b>sin mover la cabeza</b>.<br>' +
+      '<span id="eyeCalProgress" style="color: var(--accent, #00ffcc); font-weight: bold;">Punto 1 de 9</span></div>' +
+      '<div class="eye-cal-dot" id="eyeCalDot" style="left: 50%; top: 65%;"></div>';
+
+    const pairs = [];
+    let pointIndex = 0;
+    let retried = false;
+
+    const nextPoint = () => {
+      if (!faceTracker || !faceTracker.eyeSpellingActive) return; // overlay cerrado
+      if (pointIndex >= EYE_CAL_POINTS.length) {
+        finishEyeCalibration(pairs);
+        return;
+      }
+      const point = EYE_CAL_POINTS[pointIndex];
+      const dot = document.getElementById('eyeCalDot');
+      const progressEl = document.getElementById('eyeCalProgress');
+      if (!dot) return;
+      if (progressEl) progressEl.textContent = `Punto ${pointIndex + 1} de ${EYE_CAL_POINTS.length}`;
+      dot.style.left = `${point.x * 100}%`;
+      dot.style.top = `${point.y * 100}%`;
+      dot.classList.remove('measuring');
+
+      // 1s para que la mirada llegue al punto, luego 1.5s de medición
+      setTimeout(() => {
+        const dotCheck = document.getElementById('eyeCalDot');
+        if (!dotCheck || !faceTracker.eyeSpellingActive) return;
+        dotCheck.classList.add('measuring');
+        faceTracker.startEyeCalibrationPoint(point, 1500, (result) => {
+          if (result) {
+            pairs.push(result);
+            retried = false;
+            pointIndex++;
+          } else if (!retried) {
+            // Sin mirada detectada: reintentar este punto una vez
+            retried = true;
+            const p = document.getElementById('eyeCalProgress');
+            if (p) p.textContent = '⚠️ Mirada no detectada, repitiendo punto...';
+          } else {
+            // Segundo fallo: saltar el punto (buildEyeMapping exige mínimo 6)
+            retried = false;
+            pointIndex++;
+          }
+          nextPoint();
+        });
+      }, 1000);
+    };
+
+    nextPoint();
+  }
+
+  function finishEyeCalibration(pairs) {
+    const mapping = faceTracker.buildEyeMapping(pairs);
+    if (mapping) {
+      renderEyeGrid();
+      return;
+    }
+    // Calibración fallida: explicar causa y ofrecer reintento sin salir del modo
+    const stage = document.getElementById('eyeSpellingStage');
+    stage.innerHTML =
+      '<div class="eye-cal-message">❌ <b>Calibración insuficiente</b><br>' +
+      `${pairs.length} de ${EYE_CAL_POINTS.length} puntos válidos, o la mirada varió muy poco entre puntos.<br><br>` +
+      'Consejos:<br>' +
+      '· Acércate a la cámara (rostro grande y centrado)<br>' +
+      '· Ilumina tu cara de frente, sin contraluz<br>' +
+      '· Mueve <b>solo los ojos</b>, no la cabeza<br><br>' +
+      '<button id="eyeCalRetry">🔄 REINTENTAR CALIBRACIÓN</button></div>';
+    document.getElementById('eyeCalRetry').onclick = runEyeCalibration;
+  }
+
+  function renderEyeGrid() {
+    const stage = document.getElementById('eyeSpellingStage');
+    stage.innerHTML = '';
+    EYE_GRID.forEach(row => {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'eye-grid-row';
+      row.forEach(key => {
+        const cell = document.createElement('div');
+        cell.className = 'eye-grid-cell';
+        cell.dataset.key = key;
+        cell.textContent = key;
+        const progress = document.createElement('div');
+        progress.className = 'eye-cell-progress';
+        cell.appendChild(progress);
+        rowDiv.appendChild(cell);
+      });
+      stage.appendChild(rowDiv);
+    });
+
+    eyeDwell = { key: null, start: 0 };
+    eyeSpellingLoop = setInterval(eyeSpellingStep, 100);
+  }
+
+  function eyeSpellingStep() {
+    const pos = faceTracker ? faceTracker.getGazeScreenPosition() : null;
+    if (!pos) return;
+
+    const col = Math.min(EYE_GRID[0].length - 1, Math.floor(pos.x * EYE_GRID[0].length));
+    const row = Math.min(EYE_GRID.length - 1, Math.floor(pos.y * EYE_GRID.length));
+    const key = EYE_GRID[row][col];
+    const cells = document.querySelectorAll('.eye-grid-cell');
+
+    cells.forEach(cell => {
+      const active = cell.dataset.key === key;
+      cell.classList.toggle('gazed', active);
+      if (!active) {
+        const progress = cell.querySelector('.eye-cell-progress');
+        if (progress) progress.style.transform = 'scaleX(0)';
+      }
+    });
+
+    const now = Date.now();
+    if (eyeDwell.key !== key) {
+      eyeDwell = { key, start: now };
+    }
+    const elapsed = now - eyeDwell.start;
+    const activeCell = [...cells].find(cell => cell.dataset.key === key);
+    const activeProgress = activeCell ? activeCell.querySelector('.eye-cell-progress') : null;
+    if (activeProgress) {
+      activeProgress.style.transform = `scaleX(${Math.min(1, elapsed / EYE_DWELL_MS)})`;
+    }
+
+    if (elapsed >= EYE_DWELL_MS) {
+      selectEyeKey(key);
+      eyeDwell = { key: null, start: 0 };
+    }
+  }
+
+  function selectEyeKey(key) {
+    if (key === '✕') {
+      stopEyeSpelling();
+      return;
+    }
+    if (key === '␣') {
+      eyeText += ' ';
+    } else if (key === '⌫') {
+      eyeText = eyeText.slice(0, -1);
+    } else {
+      eyeText += key.toLowerCase();
+    }
+    document.getElementById('eyeSpellingText').textContent = eyeText;
+  }
+
+  document.getElementById('eyeSpelling').onclick = startEyeSpelling;
+  document.getElementById('eyeSpellingClose').onclick = stopEyeSpelling;
+
   // Cleanup on window unload
   window.addEventListener('beforeunload', () => {
     console.log('🧹 Window unloading, cleaning up...');

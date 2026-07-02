@@ -17,6 +17,7 @@ class FaceTracker {
 
       this.faceMesh.setOptions({
         maxNumFaces: 1,
+        refineLandmarks: true, // REQUERIDO para landmarks de iris (468-477): mirada y eye-spelling
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
@@ -105,6 +106,13 @@ class FaceTracker {
       stepEnd: null,
       onStepDone: null
     };
+
+    // Eye-spelling (N2, experimental): mirada suavizada, calibración de
+    // 9 puntos y mapeo lineal mirada → pantalla
+    this.eyeSpellingActive = false;
+    this.currentGaze = null;
+    this.eyeCalCollect = null;
+    this.eyeMapping = null;
 
     // Adaptive thresholds (will be adjusted based on user behavior)
     this.adaptiveThresholds = {
@@ -252,6 +260,12 @@ class FaceTracker {
       // Sin cara: resetear temporizador del gesto compuesto para evitar
       // que el contador persista entre pérdidas y recuperaciones de cara
       this.pauseStart = null;
+      // Aun sin rostro, comprobar el deadline de la calibración ocular
+      // para que el wizard avance en lugar de colgarse
+      if (this.eyeSpellingActive) {
+        this.collectEyeCalSample();
+        return;
+      }
       this.setState('inactive');
       return;
     }
@@ -263,6 +277,14 @@ class FaceTracker {
     // sin mover el ratón ni ejecutar acciones
     if (this.gestureCalibration.active) {
       this.collectCalibrationSample(landmarks);
+      return;
+    }
+
+    // Modo eye-spelling (N2): actualizar la mirada y recolectar calibración
+    // ocular, sin mover el ratón ni disparar el motor de reglas
+    if (this.eyeSpellingActive) {
+      this.lastGestures = this.detectGestures(landmarks); // actualiza currentGaze
+      this.collectEyeCalSample();
       return;
     }
 
@@ -573,10 +595,20 @@ class FaceTracker {
       
       const gazeThresholdX = 0.02;
       const gazeThresholdY = 0.025; // Más estricto: requiere mirada hacia arriba deliberada
-      
+
       if (avgGazeY < -gazeThresholdY) gestures.gazeUp = true;
       if (avgGazeX < -gazeThresholdX) gestures.gazeExtremeLeft = true;
       if (avgGazeX > gazeThresholdX) gestures.gazeExtremeRight = true;
+
+      // Mirada suavizada con EMA para eye-spelling (N2): el ruido del iris
+      // de MediaPipe es alto y sin filtro la celda activa vibraría
+      if (!this.currentGaze) {
+        this.currentGaze = { x: avgGazeX, y: avgGazeY };
+      } else {
+        const gazeAlpha = 0.25;
+        this.currentGaze.x = gazeAlpha * avgGazeX + (1 - gazeAlpha) * this.currentGaze.x;
+        this.currentGaze.y = gazeAlpha * avgGazeY + (1 - gazeAlpha) * this.currentGaze.y;
+      }
     }
 
     // 6. Dwell Gaze (Stability detection)
@@ -971,6 +1003,103 @@ class FaceTracker {
       window.auraAPI.send('save-calibrated-thresholds', thresholds);
     }
     console.log('✅ Umbrales del wizard aplicados:', thresholds);
+  }
+
+  // --- Eye-spelling (N2, experimental) ---
+
+  setEyeSpellingActive(active) {
+    this.eyeSpellingActive = active;
+    if (!active) this.eyeCalCollect = null;
+    console.log(`👁 Eye-spelling ${active ? 'activado' : 'desactivado'}`);
+  }
+
+  // Recolecta la mirada media mientras el usuario fija un punto de calibración
+  startEyeCalibrationPoint(screenPoint, durationMs, onDone) {
+    this.eyeCalCollect = {
+      screenPoint,
+      samples: [],
+      end: Date.now() + durationMs,
+      onDone
+    };
+  }
+
+  collectEyeCalSample() {
+    const col = this.eyeCalCollect;
+    if (!col) return;
+
+    // Acumular muestra solo si hay mirada disponible, pero comprobar el
+    // deadline SIEMPRE: si no, la calibración se colgaría al perder el iris
+    if (this.currentGaze) {
+      col.samples.push({ x: this.currentGaze.x, y: this.currentGaze.y });
+    }
+
+    if (Date.now() >= col.end) {
+      const n = col.samples.length;
+      const onDone = col.onDone;
+      this.eyeCalCollect = null;
+
+      // Menos de 5 muestras = medición no fiable (rostro/iris perdido)
+      if (n < 5) {
+        console.warn(`👁 Punto de calibración descartado: solo ${n} muestra(s)`);
+        if (onDone) onDone(null);
+        return;
+      }
+
+      const sum = col.samples.reduce((a, s) => ({ x: a.x + s.x, y: a.y + s.y }), { x: 0, y: 0 });
+      if (onDone) onDone({
+        gaze: { x: sum.x / n, y: sum.y / n },
+        screen: col.screenPoint,
+        sampleCount: n
+      });
+    }
+  }
+
+  // Ajusta un mapeo lineal mirada → pantalla por mínimos cuadrados (1D por eje)
+  buildEyeMapping(pairs) {
+    if (!pairs || pairs.length < 6) {
+      console.warn(`👁 Calibración insuficiente: ${pairs ? pairs.length : 0}/9 puntos válidos (mínimo 6)`);
+      return null;
+    }
+
+    // Verificar que la mirada realmente varió entre puntos: sin variación el
+    // ajuste sería degenerado y todas las celdas mapearían al mismo sitio
+    const spread = arr => Math.max(...arr) - Math.min(...arr);
+    const gxSpread = spread(pairs.map(p => p.gaze.x));
+    const gySpread = spread(pairs.map(p => p.gaze.y));
+    if (gxSpread < 0.004 || gySpread < 0.004) {
+      console.warn(`👁 Variación de mirada insuficiente (x: ${gxSpread.toFixed(4)}, y: ${gySpread.toFixed(4)}) — el usuario debe mover solo los ojos entre puntos`);
+      return null;
+    }
+
+    const fit = (xs, ys) => {
+      const n = xs.length;
+      const mx = xs.reduce((a, b) => a + b, 0) / n;
+      const my = ys.reduce((a, b) => a + b, 0) / n;
+      let num = 0, den = 0;
+      for (let i = 0; i < n; i++) {
+        num += (xs[i] - mx) * (ys[i] - my);
+        den += (xs[i] - mx) ** 2;
+      }
+      const a = den > 1e-9 ? num / den : 0;
+      return { a, b: my - a * mx };
+    };
+
+    this.eyeMapping = {
+      x: fit(pairs.map(p => p.gaze.x), pairs.map(p => p.screen.x)),
+      y: fit(pairs.map(p => p.gaze.y), pairs.map(p => p.screen.y))
+    };
+    console.log('👁 Mapeo ocular calibrado:', this.eyeMapping);
+    return this.eyeMapping;
+  }
+
+  // Posición estimada de la mirada en pantalla, normalizada 0..1
+  getGazeScreenPosition() {
+    if (!this.eyeMapping || !this.currentGaze) return null;
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    return {
+      x: clamp01(this.eyeMapping.x.a * this.currentGaze.x + this.eyeMapping.x.b),
+      y: clamp01(this.eyeMapping.y.a * this.currentGaze.y + this.eyeMapping.y.b)
+    };
   }
 
   getCurrentThresholds() {

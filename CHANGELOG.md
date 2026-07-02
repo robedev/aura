@@ -2,6 +2,58 @@
 
 ---
 
+## [0.5.1] - 2026-07-01 - FIX CRÍTICO: LANDMARKS DE IRIS Y CALIBRACIÓN OCULAR 👁
+
+### 🐛 **CAUSA RAÍZ: `refineLandmarks` NUNCA ESTUVO ACTIVADO**
+
+- ✅ **`refineLandmarks: true` añadido a FaceMesh**: MediaPipe solo genera los landmarks de iris (468-477) con esta opción. Sin ella llegaban 468 landmarks, la condición `landmarks.length > 473` nunca se cumplía y **todos los gestos de mirada estaban muertos**: `gazeUp`, `gazeExtremeLeft/Right`, el gesto compuesto de pausa de emergencia y el eye-spelling.
+- ✅ **Efecto colateral positivo**: el gesto de pausa de emergencia (mirada arriba + ambas cejas + boca cerrada, 2s) ahora puede activarse de verdad por primera vez. El período de gracia de 5s del arranque sigue protegiendo contra falsos positivos.
+
+### 👁 **CALIBRACIÓN OCULAR ROBUSTA (N2)**
+
+- ✅ **Anti-cuelgue**: el deadline de cada punto se comprueba siempre, incluso sin mirada disponible o con el rostro perdido — antes la calibración se colgaba indefinidamente en el primer punto.
+- ✅ **Validación de calidad**: cada punto requiere ≥5 muestras; el mapeo exige ≥6 de 9 puntos válidos y variación real de mirada entre puntos (rechaza el caso "el usuario movió la cabeza en vez de los ojos").
+- ✅ **Reintento automático**: un punto sin mirada detectada se repite una vez antes de saltarse.
+- ✅ **UX mejorada**: contador "Punto X de 9" visible, tiempos más generosos (1s de desplazamiento + 1.5s de medición) y pantalla de fallo con diagnóstico, consejos y botón "REINTENTAR" sin salir del modo.
+
+---
+
+## [0.5.0] - 2026-07-01 - SPRINT 4: MADUREZ DEL SISTEMA 📊
+
+### 📊 **M6 · PANEL DE ESTADÍSTICAS DE USO**
+
+- ✅ **Botón "📊 Stats" en el panel ASISTENTE**: sesión actual (minutos), acciones totales, tasa de activaciones accidentales y nivel de fatiga en tarjetas.
+- ✅ **Top 5 de acciones** de la sesión con barras proporcionales, palabras aprendidas recientes del teclado inteligente y contador del historial de adaptación.
+- ✅ **Gráfico Canvas 2D nativo** (sin dependencias) de la evolución del dwell time adaptativo a partir de `adaptationHistory`. Nuevo `stats-panel.css`.
+
+### 👤 **M5 · MULTI-PERFIL**
+
+- ✅ **Selector de perfil en el header** + botón ➕ para crear perfiles nuevos (ej. "Trabajo", "Hogar", "Terapia") sin reiniciar la app.
+- ✅ **`ProfileManager` ampliado**: `listProfiles()`, `switchProfile()`, `createProfile()` con nombres saneados (sin path traversal, acentos normalizados). El perfil actual se guarda antes de cambiar; reglas y thresholds se recargan al cambiar.
+- ✅ **Normalización unificada**: la retrocompatibilidad de propiedades (antes duplicada) ahora vive en `normalizeProfile()`, compartida por carga e importación.
+- ✅ Los perfiles creados desde la UI nacen con `onboardingCompleted: true` (el usuario ya vio el tutorial).
+
+### 📤 **N6 · EXPORTAR/IMPORTAR PERFILES**
+
+- ✅ **Botones EXPORTAR/IMPORTAR** en el panel de configuración, con diálogos nativos de Electron (`showSaveDialog`/`showOpenDialog`).
+- ✅ **Validación al importar**: el JSON debe contener `thresholds`, `rules` y `calibration`; se normaliza con los defaults y se confirma antes de reemplazar el perfil activo.
+
+### 🔌 **N4 · SISTEMA DE PLUGINS DE ACCIONES PERSONALIZADAS**
+
+- ✅ **Nuevo `app/main/plugin-manager.js`**: al arrancar escanea `app/plugins/*.js`; cada plugin exporta `{ id, label, execute(osController) }`. Acciones namespaced como `plugin:<id>` para no colisionar con las integradas.
+- ✅ **Integración completa**: las acciones de plugins aparecen en el selector del editor de reglas (🔌) y se ejecutan desde el motor de reglas vía `gesture-update`.
+- ✅ **Plugins de ejemplo**: `abrir-navegador.js` y `decir-hora.js` (anuncia la hora por TTS).
+- ⚠️ Los plugins ejecutan código Node.js local con los permisos de Aura — instalar solo plugins de confianza (documentado en el propio plugin-manager).
+
+### 👁 **N2 · EYE-SPELLING (EXPERIMENTAL)**
+
+- ✅ **Modo de deletreo por mirada**: botón "👁 Deletreo" abre un overlay con calibración ocular de 9 puntos (regresión lineal mirada→pantalla por mínimos cuadrados) seguida de un grid 5×6 (A-Z + Ñ + espacio/borrar/salir).
+- ✅ **Selección por dwell de 1.5s** con barra de progreso en la celda activa; el texto deletreado se vuelca al teclado inteligente al salir.
+- ✅ **Mirada suavizada con EMA** (α=0.25) en `face-tracking.js` para compensar el ruido del iris de MediaPipe; durante el modo no se mueve el ratón ni se disparan reglas.
+- ⚠️ **Experimental**: la precisión depende de la resolución del tracking de iris de MediaPipe; requiere buena iluminación y cabeza estable.
+
+---
+
 ## [0.4.0] - 2026-07-01 - SPRINT 3: TTS, ONBOARDING E INTEGRACIÓN CLAUDE AI ✨
 
 ### 🔊 **N5 · TTS PROACTIVO DE ESTADO Y FATIGA**
